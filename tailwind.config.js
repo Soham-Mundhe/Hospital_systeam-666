@@ -6,8 +6,10 @@ export default {
   ],
   theme: {
     extend: {
-      primary: "#0ea5e9", // Sky 500 - Darker Blue as requested
-      secondary: "#e0f2fe", // Sky 50 - Light Blue for backgrounds
+      colors: {
+        primary: "#0284c7", // Sky 600 - Darker Blue as constant
+        secondary: "#bae6fd", // Sky 200 - Slightly darker background
+      },
     },
   },
   plugins: [],

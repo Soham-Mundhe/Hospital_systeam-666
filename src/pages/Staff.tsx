@@ -34,7 +34,7 @@ export const Staff: FC = () => {
                 </div>
                 <button
                     onClick={() => setIsModalOpen(true)}
-                    className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-sky-600 transition-colors"
+                    className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-sky-700 transition-colors"
                 >
                     Add Staff
                 </button>

@@ -77,7 +77,7 @@ export const Login: FC = () => {
 
                     <button
                         type="submit"
-                        className="w-full bg-primary hover:bg-sky-600 text-white font-semibold py-2.5 rounded-lg transition-colors shadow-md shadow-primary/20"
+                        className="w-full bg-primary hover:bg-sky-700 text-white font-semibold py-2.5 rounded-lg transition-colors shadow-md shadow-primary/20"
                     >
                         Access Dashboard
                     </button>
