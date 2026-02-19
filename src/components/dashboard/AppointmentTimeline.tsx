@@ -29,7 +29,7 @@ const initialSchedule: Appointment[] = [
 ];
 
 export const AppointmentTimeline: FC = () => {
-    const [schedule, setSchedule] = useState<Appointment[]>(initialSchedule);
+    const [schedule] = useState<Appointment[]>(initialSchedule);
     const [selectedVisitType, setSelectedVisitType] = useState<VisitType>('routine');
 
     const getSlotColor = (duration: number) => {
@@ -38,10 +38,7 @@ export const AppointmentTimeline: FC = () => {
         return "bg-orange-50 border-orange-200 text-orange-700";                // Long
     };
 
-    const handleAddSimulatedAppt = () => {
-        // Simulation only: visual feedback for the selector
-        console.log(`User selected ${selectedVisitType} for next slot`);
-    };
+
 
     return (
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm h-full flex flex-col">
