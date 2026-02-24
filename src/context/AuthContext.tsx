@@ -72,11 +72,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!facilityType) return false;
 
         try {
+            // Store facilityId BEFORE sign-in so onAuthStateChanged finds it immediately
+            localStorage.setItem('facility_id', facilityId.toUpperCase());
+
             const credential = await signInWithEmailAndPassword(auth, email, password);
             const firebaseUser = credential.user;
-
-            // Persist facilityId so it survives page refresh
-            localStorage.setItem('facility_id', facilityId.toUpperCase());
 
             setUser({
                 id: firebaseUser.uid,
@@ -88,6 +88,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
             return true;
         } catch (err) {
+            // Clean up if sign-in failed
+            localStorage.removeItem('facility_id');
             console.error('Firebase login error:', err);
             return false;
         }
