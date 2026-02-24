@@ -2,11 +2,13 @@ import { useState } from 'react';
 import type { FC } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Building2, Activity } from 'lucide-react';
+import { Building2, Activity, Eye, EyeOff } from 'lucide-react';
 
 export const Login: FC = () => {
     const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [facilityId, setFacilityId] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -15,59 +17,79 @@ export const Login: FC = () => {
         e.preventDefault();
         setError('');
 
-        // Basic validation
-        if (!facilityId.match(/^[HCL]-\d{3,5}$/i)) {
-            setError('Invalid Facility ID format. Use H-xxxx, C-xxxx, or L-xxxx');
-            return;
-        }
-
-        const success = await login(email, facilityId);
+        const success = await login(email, password, facilityId);
         if (success) {
             navigate('/');
         } else {
-            setError('Invalid credentials or facility ID.');
+            setError('Invalid credentials or facility ID. Check your email, password, and Facility ID format (H-xxxx / C-xxxx / L-xxxx).');
         }
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-            <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 border border-gray-100">
-                <div className="text-center mb-8">
-                    <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                        <Activity className="w-8 h-8 text-primary" />
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+            <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-10 border border-gray-100">
+                {/* Icon */}
+                <div className="flex flex-col items-center mb-8">
+                    <div className="bg-sky-100 w-16 h-16 rounded-full flex items-center justify-center mb-5">
+                        <Activity className="w-8 h-8 text-sky-500" />
                     </div>
                     <h1 className="text-2xl font-bold text-gray-900">Facility Login</h1>
-                    <p className="text-gray-500 mt-2">Enter your credentials to access the dashboard</p>
+                    <p className="text-gray-400 mt-1 text-sm">Enter your credentials to access the dashboard</p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-5">
                     {error && (
                         <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg border border-red-100">
                             {error}
                         </div>
                     )}
 
+                    {/* Email Address */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Email Address</label>
                         <input
                             type="email"
                             required
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
-                            placeholder="admin@facility.com"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none transition-all text-gray-700 placeholder-gray-400"
+                            placeholder="admin@health.gov"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                         />
                     </div>
 
+                    {/* Password */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Facility ID</label>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Password</label>
                         <div className="relative">
-                            <Building2 className="absolute left-3 top-2.5 text-gray-400 w-5 h-5" />
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                required
+                                className="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none transition-all text-gray-700 placeholder-gray-400"
+                                placeholder="Enter your password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword((v) => !v)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                tabIndex={-1}
+                            >
+                                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Facility ID */}
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Facility ID</label>
+                        <div className="relative">
+                            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                             <input
                                 type="text"
                                 required
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all uppercase"
-                                placeholder="H-1234"
+                                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none transition-all uppercase text-gray-700 placeholder-gray-400"
+                                placeholder="H-101 / C-201 / L-301"
                                 value={facilityId}
                                 onChange={(e) => setFacilityId(e.target.value)}
                             />
@@ -75,17 +97,19 @@ export const Login: FC = () => {
                         <p className="text-xs text-gray-400 mt-1 ml-1">Format: H-xxxx (Hospital), C-xxxx (Clinic), L-xxxx (Lab)</p>
                     </div>
 
+                    {/* Submit Button */}
                     <button
                         type="submit"
-                        className="w-full bg-primary hover:bg-sky-700 text-white font-semibold py-2.5 rounded-lg transition-colors shadow-md shadow-primary/20"
+                        className="w-full bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white font-semibold py-3 rounded-lg transition-colors shadow-md shadow-sky-200 mt-2"
                     >
                         Access Dashboard
                     </button>
                 </form>
 
-                <div className="mt-6 text-center text-xs text-gray-400">
-                    <p>Protected Government Health System System</p>
-                    <p>© 2024 Ministry of Health</p>
+                {/* Footer */}
+                <div className="mt-8 text-center text-xs text-gray-400 space-y-0.5">
+                    <p>Protected Government Health System</p>
+                    <p>© 2026 Ministry of Health</p>
                 </div>
             </div>
         </div>
