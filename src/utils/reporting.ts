@@ -10,7 +10,7 @@
  *   18:00–23:59 → "18"
  */
 
-import { collection, doc, getDocs, setDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 // ─── Slot Helper ─────────────────────────────────────────────────────────────
@@ -93,7 +93,18 @@ export async function update6HourReport(
             return p.admissionDate === todayStr;
         }).length;
 
-        // 3. Write the report document (merge: true allows re-runs to accumulate)
+        // 3. Fetch facility capacity config (totalBeds, icuBeds)
+        const facilitySnap = await getDoc(doc(db, 'facilities', facilityId));
+        const facilityData = facilitySnap.exists() ? facilitySnap.data() : {};
+        const totalBeds = typeof facilityData.totalBeds === 'number' ? facilityData.totalBeds : 0;
+        const icuBeds = typeof facilityData.icuBeds === 'number' ? facilityData.icuBeds : 0;
+
+        // 4. Derived metrics (numeric, safe-divided)
+        const availableBeds = Math.max(0, totalBeds - occupiedBeds);
+        const bedUtilization = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 10000) / 10000 : 0;
+        const icuStressIndex = icuBeds > 0 ? Math.round((icuOccupied / icuBeds) * 10000) / 10000 : 0;
+
+        // 5. Write the report document (merge: true allows re-runs to accumulate)
         const reportRef = doc(
             db,
             'facilities', facilityId,
@@ -106,6 +117,7 @@ export async function update6HourReport(
                 facilityId,
                 slotId,
                 timestamp: new Date().toISOString(),
+                // ── Raw metrics ──────────────────────────────────────
                 occupiedBeds,
                 icuOccupied,
                 fluCases,
@@ -113,7 +125,14 @@ export async function update6HourReport(
                 covidCases,
                 newAdmissions,
                 discharges,
-                // CSV-compatible flat fields
+                // ── Capacity (from facility settings) ─────────────
+                totalBeds,
+                icuBeds,
+                // ── Derived metrics (stored in Firestore) ─────────
+                availableBeds,
+                bedUtilization,     // 0.00–1.00  e.g. 0.04 = 4%
+                icuStressIndex,     // 0.00–1.00  e.g. 0.10 = 10%
+                // ── CSV-compatible flat fields ─────────────────────
                 date: todayStr,
                 slot: slotId.split('_')[1],
             },
@@ -138,6 +157,10 @@ export async function update6HourReport(
                 (p) => p.icuRequired === true && p.admissionDate === admissionDate
             ).length;
 
+            const pastAvailableBeds = Math.max(0, totalBeds - pastOccupied);
+            const pastBedUtilization = totalBeds > 0 ? Math.round((pastOccupied / totalBeds) * 10000) / 10000 : 0;
+            const pastIcuStressIndex = icuBeds > 0 ? Math.round((pastIcu / icuBeds) * 10000) / 10000 : 0;
+
             const pastReportRef = doc(db, 'facilities', facilityId, 'reports', pastSlotId);
             await setDoc(
                 pastReportRef,
@@ -145,6 +168,7 @@ export async function update6HourReport(
                     facilityId,
                     slotId: pastSlotId,
                     timestamp: new Date().toISOString(),
+                    // ── Raw metrics ────────────────────────────────
                     occupiedBeds: pastOccupied,
                     icuOccupied: pastIcu,
                     fluCases: patients.filter((p) => p.admissionDate === admissionDate && typeof p.diagnosis === 'string' && p.diagnosis.toLowerCase().includes('flu')).length,
@@ -152,6 +176,14 @@ export async function update6HourReport(
                     covidCases: patients.filter((p) => p.admissionDate === admissionDate && typeof p.diagnosis === 'string' && p.diagnosis.toLowerCase().includes('covid')).length,
                     newAdmissions: pastNewAdmissions,
                     discharges: pastDischarges,
+                    // ── Capacity ────────────────────────────────────
+                    totalBeds,
+                    icuBeds,
+                    // ── Derived metrics ─────────────────────────────
+                    availableBeds: pastAvailableBeds,
+                    bedUtilization: pastBedUtilization,
+                    icuStressIndex: pastIcuStressIndex,
+                    // ── CSV flat fields ─────────────────────────────
                     date: admissionDate,
                     slot: '18',
                 },
