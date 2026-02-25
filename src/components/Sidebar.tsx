@@ -24,7 +24,7 @@ export const Sidebar: FC = () => {
             { to: '/resources', label: 'Resources', icon: Package },
             { to: '/analytics', label: 'Analytics', icon: BarChart2 },
             { to: '/staff', label: 'Staff', icon: Users },
-            { to: '/settings', label: 'Settings', icon: Settings, disabled: true },
+            { to: '/settings', label: 'Settings', icon: Settings },
         ];
         return common;
     };
@@ -53,10 +53,8 @@ export const Sidebar: FC = () => {
                             "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium",
                             isActive
                                 ? "bg-primary text-white shadow-lg shadow-primary/25"
-                                : "text-slate-400 hover:text-white hover:bg-slate-800",
-                            link.disabled && "opacity-50 cursor-not-allowed hover:bg-transparent hover:text-slate-400"
+                                : "text-slate-400 hover:text-white hover:bg-slate-800"
                         )}
-                        onClick={(e) => link.disabled && e.preventDefault()}
                     >
                         <link.icon className="w-5 h-5" />
                         {link.label}

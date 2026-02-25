@@ -2,16 +2,18 @@ import { useState } from 'react';
 import type { FC } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { StatCard } from '../components/StatCard';
-import { hospitalStats, clinicStats, labStats, hospitalBeds, hospitalPatients, labPipeline } from '../mockData';
+import { clinicStats, labStats, hospitalPatients, labPipeline } from '../mockData';
 import { BedGrid } from '../components/dashboard/BedGrid';
 import { EmergencyTicker } from '../components/dashboard/EmergencyTicker';
 import { PatientQueue } from '../components/dashboard/PatientQueue';
 import { AppointmentTimeline } from '../components/dashboard/AppointmentTimeline';
 import { SamplePipeline } from '../components/dashboard/SamplePipeline';
+import { HospitalIntelligence } from '../components/dashboard/HospitalIntelligence';
 import { useNavigate } from 'react-router-dom';
 import type { Bed, Patient } from '../types';
 import { BedDetailsModal } from '../components/dashboard/BedDetailsModal';
-import { useSimulation } from '../hooks/useSimulation';
+import { useHospitalLiveData } from '../hooks/useHospitalLiveData';
+import { useLiveBeds } from '../hooks/useLiveBeds';
 import { clsx } from 'clsx';
 
 
@@ -19,8 +21,8 @@ export const Dashboard: FC = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
 
-    // State for Bed Management
-    const [beds, setBeds] = useState<Bed[]>(hospitalBeds);
+    // State for Bed Management (non-hospital facility mock beds kept for modal flow)
+    const [beds, setBeds] = useState<Bed[]>([]);
     const [patients, setPatients] = useState<Patient[]>(hospitalPatients);
     const [selectedBed, setSelectedBed] = useState<Bed | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -104,7 +106,7 @@ export const Dashboard: FC = () => {
     }
 
     const handleViewRecord = (patientId: string) => {
-        navigate(`/records?search=${patientId}`);
+        navigate(`/records?patient=${patientId}`);
     };
 
     const handleBedCountChange = (newCount: number, type: Bed['type'] = 'general') => {
@@ -136,7 +138,43 @@ export const Dashboard: FC = () => {
 
     // Hospital Layout: High-density command center
     if (user.facilityType === 'hospital') {
-        const { bedOccupancy, icuOccupancy, oxygenLevel, emergencyActive } = useSimulation();
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const live = useHospitalLiveData(user.facilityId);
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const { beds: liveBeds } = useLiveBeds(user.facilityId);
+        const { bedOccupancy, icuOccupancy, oxygenLevel, emergencyActive } = live;
+
+        // Build live StatCards from real Firestore data
+        const liveHospitalStats = [
+            {
+                label: 'Admissions Today',
+                value: live.admissionsToday,
+                change: `${live.newAdmissions} new`,
+                trend: 'up' as const,
+                icon: 'Users',
+            },
+            {
+                label: 'Bed Occupancy',
+                value: live.bedOccupancyPct,
+                change: live.totalBeds > 0 ? `${live.occupiedBeds}/${live.totalBeds}` : 'Set capacity →',
+                trend: bedOccupancy > 85 ? 'down' as const : 'neutral' as const,
+                icon: 'Bed',
+            },
+            {
+                label: 'ICU Occupancy',
+                value: live.icuOccupancyPct,
+                change: live.icuBeds > 0 ? `${live.icuOccupied}/${live.icuBeds} beds` : 'Set capacity →',
+                trend: icuOccupancy > 90 ? 'down' as const : 'neutral' as const,
+                icon: 'Activity',
+            },
+            {
+                label: 'Oxygen Units',
+                value: live.oxygenDisplay,
+                change: live.oxygenUnits > 0 ? 'Live' : 'Set in Settings',
+                trend: 'neutral' as const,
+                icon: 'Wind',
+            },
+        ];
 
         return (
             <div className="space-y-6">
@@ -163,6 +201,9 @@ export const Dashboard: FC = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* ── Intelligence Centre (real-time Firestore) ── */}
+                <HospitalIntelligence facilityId={user.facilityId} />
 
                 {/* Resource Awareness Panel */}
                 <div className="bg-slate-900 text-white p-4 rounded-xl shadow-lg grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -222,14 +263,14 @@ export const Dashboard: FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {hospitalStats.map((stat, idx) => (
+                    {liveHospitalStats.map((stat, idx) => (
                         <StatCard key={idx} stat={stat} className="py-4" />
                     ))}
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-2">
-                        <BedGrid beds={beds} onBedClick={handleBedClick} onBedCountChange={handleBedCountChange} />
+                        <BedGrid beds={liveBeds} onBedClick={handleBedClick} />
                     </div>
                     <div className="lg:col-span-1">
                         <EmergencyTicker />

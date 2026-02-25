@@ -25,6 +25,10 @@ export interface Patient {
     ward?: string;
     admissionDate: string;
     symptoms: string[];
+    diagnosis?: string;
+    icuRequired?: boolean;
+    oxygenRequired?: boolean;
+    lengthOfStay?: number;
 }
 
 export interface Appointment {

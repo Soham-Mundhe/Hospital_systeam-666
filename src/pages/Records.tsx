@@ -2,28 +2,73 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Table, TableCell, TableRow } from '../components/Table';
-import { hospitalPatients, clinicAppointments, labTests } from '../mockData';
+import { clinicAppointments, labTests } from '../mockData';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db } from '../firebase';
 import { clsx } from 'clsx';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Eye, Edit2, Shield, RefreshCw } from 'lucide-react';
+import { Search, Eye, Edit2, Shield, RefreshCw, UserPlus, CheckCircle } from 'lucide-react';
+import { AddPatientModal } from '../components/AddPatientModal';
+import { PatientDetailModal } from '../components/PatientDetailModal';
 
 type Role = 'Doctor' | 'Nurse' | 'Admin' | 'Lab Tech';
+
+interface FirestorePatient {
+    id: string;
+    patientId?: string;
+    name?: string;
+    age?: number;
+    gender?: string;
+    ward?: string;
+    status?: string;
+    diagnosis?: string;
+    admissionDate?: string;
+    symptoms?: string[];
+    icuRequired?: boolean;
+}
 
 export const Records: FC = () => {
     const { user } = useAuth();
     const [searchParams, setSearchParams] = useSearchParams();
     const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [saveSuccess, setSaveSuccess] = useState(false);
+    const [selectedPatientDocId, setSelectedPatientDocId] = useState<string | null>(null);
+
+    // Live Firestore patients (hospital only)
+    const [firestorePatients, setFirestorePatients] = useState<FirestorePatient[]>([]);
+    const [lastSync, setLastSync] = useState<Date>(new Date());
 
     // Simulated Role State for UI Demo
     const [simulatedRole, setSimulatedRole] = useState<Role>(
         user?.facilityType === 'lab' ? 'Lab Tech' : 'Doctor'
     );
 
+    // Live Firestore listener for hospital patients
+    useEffect(() => {
+        if (user?.facilityType !== 'hospital' || !user?.facilityId) return;
+        const q = query(
+            collection(db, 'facilities', user.facilityId, 'patients'),
+            orderBy('createdAt', 'desc')
+        );
+        const unsub = onSnapshot(q, (snap) => {
+            setFirestorePatients(
+                snap.docs.map(d => ({ id: d.id, ...d.data() }) as FirestorePatient)
+            );
+            setLastSync(new Date());
+        }, (err) => console.error('[Records] patients:', err));
+        return () => unsub();
+    }, [user?.facilityId, user?.facilityType]);
+
     useEffect(() => {
         const query = searchParams.get('search');
-        if (query) {
-            setSearchTerm(query);
-        }
+        if (query) setSearchTerm(query);
+    }, [searchParams]);
+
+    // Auto-open patient detail when navigated from bed grid with ?patient=docId
+    useEffect(() => {
+        const pid = searchParams.get('patient');
+        if (pid) setSelectedPatientDocId(pid);
     }, [searchParams]);
 
     const handleSearch = (term: string) => {
@@ -38,9 +83,11 @@ export const Records: FC = () => {
     if (!user) return null;
 
     // Filter Logic
-    const filteredHospitalPatients = hospitalPatients.filter(p =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.id.toLowerCase().includes(searchTerm.toLowerCase())
+    const term = searchTerm.toLowerCase();
+    const filteredHospitalPatients = firestorePatients.filter(p =>
+        (p.name ?? '').toLowerCase().includes(term) ||
+        (p.patientId ?? p.id ?? '').toLowerCase().includes(term) ||
+        (p.diagnosis ?? '').toLowerCase().includes(term)
     );
 
     const filteredClinicAppointments = clinicAppointments.filter(a =>
@@ -74,7 +121,7 @@ export const Records: FC = () => {
                         Access Level: <span className={clsx("font-semibold", simulatedRole === 'Nurse' ? "text-orange-600" : "text-green-600")}>{getAccessLevel(simulatedRole)}</span>
                         <span className="text-gray-300">|</span>
                         <RefreshCw className="w-3 h-3" />
-                        Data last updated: <span className="font-mono text-gray-700">Just now</span>
+                        Data last updated: <span className="font-mono text-gray-700">{user.facilityType === 'hospital' ? lastSync.toLocaleTimeString() : 'Just now'}</span>
                     </p>
                 </div>
 
@@ -104,6 +151,18 @@ export const Records: FC = () => {
                             onChange={(e) => handleSearch(e.target.value)}
                         />
                     </div>
+
+                    {/* Add Patient Button — hospital + write-access roles only */}
+                    {user?.facilityType === 'hospital' &&
+                        (simulatedRole === 'Doctor' || simulatedRole === 'Admin') && (
+                            <button
+                                onClick={() => setShowAddModal(true)}
+                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-all whitespace-nowrap"
+                            >
+                                <UserPlus className="w-4 h-4" />
+                                Add Patient
+                            </button>
+                        )}
                 </div>
             </div>
 
@@ -122,13 +181,17 @@ export const Records: FC = () => {
                         {filteredHospitalPatients.length > 0 ? (
                             filteredHospitalPatients.map((patient) => (
                                 <TableRow key={patient.id}>
-                                    <TableCell className="font-medium text-gray-900">{patient.id}</TableCell>
+                                    <TableCell className="font-medium text-gray-900">
+                                        {patient.patientId ?? patient.id}
+                                    </TableCell>
                                     <TableCell>
-                                        <div className="font-medium">{patient.name}</div>
-                                        <div className="text-xs text-gray-500">{patient.symptoms.join(', ')}</div>
+                                        <div className="font-medium">{patient.name ?? '—'}</div>
+                                        <div className="text-xs text-gray-500">
+                                            {patient.diagnosis ?? (patient.symptoms ?? []).join(', ')}
+                                        </div>
                                     </TableCell>
                                     <TableCell>{patient.age} / {patient.gender}</TableCell>
-                                    <TableCell>{patient.ward}</TableCell>
+                                    <TableCell>{patient.ward ?? '—'}</TableCell>
                                     <TableCell>
                                         <span className={clsx(
                                             "px-2 py-1 rounded-full text-xs font-medium",
@@ -154,7 +217,11 @@ export const Records: FC = () => {
 
                                     <TableCell>
                                         <div className="flex gap-2">
-                                            <button className="text-gray-400 hover:text-primary transition-colors" title="View Details">
+                                            <button
+                                                className="text-gray-400 hover:text-primary transition-colors"
+                                                title="View Full Record"
+                                                onClick={() => setSelectedPatientDocId(patient.id)}
+                                            >
                                                 <Eye className="w-4 h-4" />
                                             </button>
                                             {(simulatedRole === 'Doctor' || simulatedRole === 'Admin') && (
@@ -237,6 +304,45 @@ export const Records: FC = () => {
                     wait_time_metric: "N/A"
                 </IE_DATA_COLLECTION>
             */}
+
+            {/* Save Success Toast */}
+            {saveSuccess && (
+                <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-green-600 text-white px-5 py-3 rounded-xl shadow-lg animate-fade-in">
+                    <CheckCircle className="w-5 h-5" />
+                    <span className="text-sm font-semibold">Patient record saved to Firestore!</span>
+                </div>
+            )}
+
+            {/* Add Patient Modal */}
+            {showAddModal && user && (
+                <AddPatientModal
+                    facilityId={user.facilityId}
+                    onClose={() => setShowAddModal(false)}
+                    onSuccess={() => {
+                        setSaveSuccess(true);
+                        setTimeout(() => setSaveSuccess(false), 3500);
+                    }}
+                />
+            )}
+
+            {/* Patient Detail Modal */}
+            {selectedPatientDocId && user && (
+                <PatientDetailModal
+                    facilityId={user.facilityId}
+                    patientDocId={selectedPatientDocId}
+                    onClose={() => {
+                        setSelectedPatientDocId(null);
+                        // Clean the URL param without reload
+                        if (searchParams.has('patient')) {
+                            setSearchParams(prev => {
+                                const next = new URLSearchParams(prev);
+                                next.delete('patient');
+                                return next;
+                            });
+                        }
+                    }}
+                />
+            )}
         </div>
     );
 };

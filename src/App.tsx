@@ -8,6 +8,7 @@ import { Records } from './pages/Records';
 import { Resources } from './pages/Resources';
 import { Analytics } from './pages/Analytics';
 import { Staff } from './pages/Staff';
+import { Settings } from './pages/Settings';
 import { Layout } from './components/Layout';
 
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
@@ -54,6 +55,12 @@ function AppRoutes() {
       <Route path="/staff" element={
         <ProtectedRoute>
           <Staff />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/settings" element={
+        <ProtectedRoute>
+          <Settings />
         </ProtectedRoute>
       } />
 
