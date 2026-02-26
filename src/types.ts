@@ -21,13 +21,14 @@ export interface Patient {
     name: string;
     age: number;
     gender: string;
-    status: 'admitted' | 'discharged' | 'pending' | 'critical';
+    status: 'admitted' | 'discharged' | 'critical';
     ward?: string;
-    admissionDate: string;
+    admissionDate: string; // YYYY-MM-DD
+    dischargeDate?: string; // YYYY-MM-DD
     symptoms: string[];
-    diagnosis?: string;
-    icuRequired?: boolean;
-    oxygenRequired?: boolean;
+    diagnosis: 'flu' | 'dengue' | 'covid' | 'other';
+    icuRequired: boolean;
+    oxygenRequired: boolean;
     lengthOfStay?: number;
 }
 

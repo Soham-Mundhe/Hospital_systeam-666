@@ -10,6 +10,31 @@ import { Analytics } from './pages/Analytics';
 import { Staff } from './pages/Staff';
 import { Settings } from './pages/Settings';
 import { Layout } from './components/Layout';
+import { useScheduledReporting } from './hooks/useScheduledReporting';
+import { useBackfillReports } from './hooks/useBackfillReports';
+
+// ─── Background Systems ──────────────────────────────────────────────────────
+
+/**
+ * Mounts background services:
+ * 1. 6-hour scheduled reporting job (Scheduler)
+ * 2. Missing slot detection and gap filling (Backfill)
+ * 
+ * Placed inside AuthProvider so it can read useAuth().
+ * Runs only when a user session is active (facilityId present).
+ * Returns null — purely a side-effect component.
+ */
+function SystemMount(): null {
+  const { user } = useAuth();
+  const fid = user?.facilityId ?? '';
+
+  useScheduledReporting(fid);
+  useBackfillReports(fid);
+
+  return null;
+}
+
+// ─── Route guard ─────────────────────────────────────────────────────────────
 
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   const { user, isLoading } = useAuth();
@@ -73,6 +98,8 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        {/* Background systems — active for the lifetime of the logged-in session */}
+        <SystemMount />
         <AppRoutes />
       </Router>
     </AuthProvider>

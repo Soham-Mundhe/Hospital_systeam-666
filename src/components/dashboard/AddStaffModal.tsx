@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { X, CheckCircle2 } from 'lucide-react';
+import { X, CheckCircle2, Loader2 } from 'lucide-react';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../firebase';
 import type { Staff } from '../../types';
 
 export interface AddStaffModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onAdd: (staff: Omit<Staff, 'id'>) => void;
+    facilityId: string;
+    onSuccess?: () => void;
 }
 
-export const AddStaffModal = ({ isOpen, onClose, onAdd }: AddStaffModalProps) => {
+export const AddStaffModal = ({ isOpen, onClose, facilityId, onSuccess }: AddStaffModalProps) => {
     const [formData, setFormData] = useState({
         name: '',
         role: 'Doctor',
@@ -17,21 +20,35 @@ export const AddStaffModal = ({ isOpen, onClose, onAdd }: AddStaffModalProps) =>
         shift: 'Morning',
         status: 'Active'
     });
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     if (!isOpen) return null;
 
-    const handleSubmit = (e: FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
-        onAdd({
-            name: formData.name,
-            role: formData.role as Staff['role'],
-            department: formData.department,
-            shift: formData.shift as Staff['shift'],
-            status: formData.status as Staff['status']
-        });
-        // Reset form
-        setFormData({ name: '', role: 'Doctor', department: '', shift: 'Morning', status: 'Active' });
-        onClose();
+        if (!facilityId) return;
+
+        setIsSaving(true);
+        setError(null);
+
+        try {
+            await addDoc(collection(db, 'facilities', facilityId, 'staff'), {
+                ...formData,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            });
+
+            // Reset form
+            setFormData({ name: '', role: 'Doctor', department: '', shift: 'Morning', status: 'Active' });
+            onSuccess?.();
+            onClose();
+        } catch (err) {
+            console.error('[AddStaffModal] error:', err);
+            setError('Failed to add staff member. Please try again.');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -45,6 +62,11 @@ export const AddStaffModal = ({ isOpen, onClose, onAdd }: AddStaffModalProps) =>
                 </div>
 
                 <div className="p-6">
+                    {error && (
+                        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
+                            {error}
+                        </div>
+                    )}
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
@@ -113,10 +135,15 @@ export const AddStaffModal = ({ isOpen, onClose, onAdd }: AddStaffModalProps) =>
 
                         <button
                             type="submit"
-                            className="w-full bg-primary hover:bg-primary/90 text-white py-2.5 rounded-lg font-medium transition-all shadow-sm active:scale-95 transform mt-4 flex items-center justify-center gap-2"
+                            disabled={isSaving}
+                            className="w-full bg-primary hover:bg-primary/90 disabled:bg-primary/50 text-white py-2.5 rounded-lg font-medium transition-all shadow-sm active:scale-95 transform mt-4 flex items-center justify-center gap-2"
                         >
-                            <CheckCircle2 className="w-5 h-5" />
-                            Add Staff Member
+                            {isSaving ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                                <CheckCircle2 className="w-5 h-5" />
+                            )}
+                            {isSaving ? 'Adding Staff Member...' : 'Add Staff Member'}
                         </button>
                     </form>
                 </div>

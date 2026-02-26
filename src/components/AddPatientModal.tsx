@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FC } from 'react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { update6HourReport } from '../utils/reporting';
 import { X, UserPlus, Loader2 } from 'lucide-react';
@@ -18,7 +18,7 @@ interface FormState {
     gender: string;
     ward: string;
     admissionDate: string;
-    diagnosis: string;
+    diagnosis: 'flu' | 'dengue' | 'covid' | 'other';
     status: 'admitted' | 'critical' | 'discharged';
     icuRequired: boolean;
     oxygenRequired: boolean;
@@ -32,7 +32,7 @@ const initialForm: FormState = {
     gender: 'Male',
     ward: '',
     admissionDate: new Date().toISOString().split('T')[0],
-    diagnosis: '',
+    diagnosis: 'flu',
     status: 'admitted',
     icuRequired: false,
     oxygenRequired: false,
@@ -59,31 +59,51 @@ export const AddPatientModal: FC<Props> = ({ facilityId, onClose, onSuccess }) =
         e.preventDefault();
         setError(null);
 
+        // 1. Basic Validation
+        const ageNum = Number(form.age);
         if (!form.patientId || !form.name || !form.age || !form.diagnosis) {
             setError('Please fill in all required fields (Patient ID, Name, Age, Diagnosis).');
             return;
         }
 
+        if (isNaN(ageNum) || ageNum <= 0) {
+            setError('Age must be a positive number greater than 0.');
+            return;
+        }
+
         setIsSaving(true);
         try {
+            // 2. Secondary Validation: Facility Capacity Check
+            const facilitySnap = await getDoc(doc(db, 'facilities', facilityId));
+            const facilityData = facilitySnap.exists() ? facilitySnap.data() : {};
+            const totalBeds = facilityData.totalBeds || 0;
+            const icuBeds = facilityData.icuBeds || 0;
+
+            if (totalBeds < icuBeds) {
+                setError('Critical Error: Facility configuration invalid (Total Beds < ICU Beds). Please contact admin.');
+                setIsSaving(false);
+                return;
+            }
+
+            // 3. Save with Normalization
             const colRef = collection(db, 'facilities', facilityId, 'patients');
             await addDoc(colRef, {
                 patientId: form.patientId.trim(),
                 name: form.name.trim(),
-                age: Number(form.age),
+                age: ageNum,
                 gender: form.gender,
                 ward: form.ward.trim(),
                 admissionDate: form.admissionDate,
-                diagnosis: form.diagnosis.trim().toLowerCase(),
+                dischargeDate: form.status === 'discharged' ? form.admissionDate : null, // Default to admission date if discharged immediately
+                diagnosis: form.diagnosis,
                 status: form.status,
                 icuRequired: form.icuRequired,
                 oxygenRequired: form.oxygenRequired,
-                lengthOfStay: form.lengthOfStay ? Number(form.lengthOfStay) : null,
+                lengthOfStay: form.lengthOfStay ? Math.max(0, Number(form.lengthOfStay)) : null,
                 createdAt: serverTimestamp(),
             });
 
             // Trigger automatic 6-hour aggregated report (fire-and-forget)
-            // Also pass admissionDate so a slot is created for past dates
             update6HourReport(facilityId, form.admissionDate).catch(console.error);
             onSuccess();
             onClose();
@@ -245,14 +265,17 @@ export const AddPatientModal: FC<Props> = ({ facilityId, onClose, onSuccess }) =
                         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
                             Diagnosis <span className="text-red-500">*</span>
                         </label>
-                        <textarea
+                        <select
                             name="diagnosis"
                             value={form.diagnosis}
                             onChange={handleChange}
-                            placeholder="Primary diagnosis or presenting complaint..."
-                            rows={2}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"
-                        />
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
+                        >
+                            <option value="flu">Influenza / Flu</option>
+                            <option value="dengue">Dengue</option>
+                            <option value="covid">COVID-19</option>
+                            <option value="other">Other / Unknown</option>
+                        </select>
                     </div>
 
                     {/* Status */}
