@@ -16,8 +16,10 @@ interface ReportSlot {
     slotId: string;
     date?: string;
     slot?: string;
-    newAdmissions?: number;
-    discharges?: number;
+    newAdmissionsToday?: number;   // current field name
+    newAdmissions?: number;        // legacy field name (backfilled slots)
+    dischargesToday?: number;      // current field name
+    discharges?: number;           // legacy field name (backfilled slots)
     occupiedBeds?: number;
     icuOccupied?: number;
     fluCases?: number;
@@ -29,8 +31,8 @@ interface ReportSlot {
     bedUtilization?: number;
     icuStressIndex?: number;
     availableBeds?: number;
-    autoFilled?: boolean;     // ← backfilled slot (no patient activity)
-    scheduledRun?: boolean;   // ← scheduler-generated slot
+    autoFilled?: boolean;
+    scheduledRun?: boolean;
     timestamp?: string;
 }
 
@@ -157,8 +159,8 @@ export const Analytics: FC = () => {
     // Chart data
     const admissionsChart = filteredReports.map(r => ({
         name: slotLabel(r.slotId),
-        admissions: r.newAdmissions ?? 0,
-        discharges: r.discharges ?? 0,
+        admissions: r.newAdmissionsToday ?? r.newAdmissions ?? 0,
+        discharges: r.dischargesToday ?? r.discharges ?? 0,
         icu: r.icuOccupied ?? 0,
         autoFilled: r.autoFilled ?? false,
     }));
@@ -184,8 +186,8 @@ export const Analytics: FC = () => {
         const stays = patients.map(p => p.lengthOfStay ?? 0).filter(s => s > 0);
         return stays.length ? (stays.reduce((a, b) => a + b, 0) / stays.length).toFixed(1) : '—';
     })();
-    const totalAdmissions = reports.reduce((s, r) => s + (r.newAdmissions ?? 0), 0);
-    const totalEmergency = reports.reduce((s, r) => s + (r.emergencyCases ?? 0), 0);
+    const totalAdmissions = reports.reduce((s, r) => s + (r.newAdmissionsToday ?? r.newAdmissions ?? 0), 0);
+    const totalEmergency = patients.filter(p => p.status === 'critical').length;
     const fluTotal = patients.filter(p => typeof p.diagnosis === 'string' && p.diagnosis.toLowerCase().includes('flu')).length;
     const dengueTotal = patients.filter(p => typeof p.diagnosis === 'string' && p.diagnosis.toLowerCase().includes('dengue')).length;
     const covidTotal = patients.filter(p => typeof p.diagnosis === 'string' && p.diagnosis.toLowerCase().includes('covid')).length;
@@ -473,8 +475,8 @@ export const Analytics: FC = () => {
                                         </td>
                                         <td className="px-4 py-2.5 text-gray-700">{r.occupiedBeds ?? '—'}</td>
                                         <td className="px-4 py-2.5 text-gray-700">{r.icuOccupied ?? '—'}</td>
-                                        <td className="px-4 py-2.5 text-gray-700">{r.newAdmissions ?? '—'}</td>
-                                        <td className="px-4 py-2.5 text-gray-700">{r.discharges ?? '—'}</td>
+                                        <td className="px-4 py-2.5 text-gray-700">{r.newAdmissionsToday ?? r.newAdmissions ?? '—'}</td>
+                                        <td className="px-4 py-2.5 text-gray-700">{r.dischargesToday ?? r.discharges ?? '—'}</td>
                                         <td className="px-4 py-2.5 text-yellow-600 font-medium">{r.fluCases ?? '—'}</td>
                                         <td className="px-4 py-2.5 text-red-600    font-medium">{r.dengueCases ?? '—'}</td>
                                         <td className="px-4 py-2.5 text-purple-600 font-medium">{r.covidCases ?? '—'}</td>

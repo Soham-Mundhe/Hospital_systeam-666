@@ -23,6 +23,7 @@ interface PatientDoc {
     icuRequired?: boolean;
     diagnosis?: string;
     admissionDate?: string;
+    dischargeDate?: string;
 }
 
 interface ReportDoc {
@@ -251,17 +252,21 @@ export const HospitalIntelligence: FC<Props> = ({ facilityId }) => {
     // ── Derived metrics from patients ──────────────────────────────────────────
 
     const activePatients = patients.filter((p) => p.status === 'admitted' || p.status === 'critical').length;
-    const icuOccupied = patients.filter((p) => p.icuRequired === true).length;
+    const icuOccupied = patients.filter((p) => p.icuRequired === true && (p.status === 'admitted' || p.status === 'critical')).length;
+    const emergencyCases = patients.filter((p) => p.status === 'critical').length;
 
-    // Pull bed totals from latest report if available
+    // Calculate live discharges today
+    const todayStr = localDate(new Date());
+    const dischargesToday = patients.filter((p) => p.status === 'discharged' && p.dischargeDate === todayStr).length;
+
+    // Pull report data for trend and comparison
     const curSlot = getCurrent6HourSlot();
     const prevSlot = getPrev6HourSlot();
     const curReport = reports[curSlot] ?? {};
     const prevReport = reports[prevSlot] ?? {};
 
-    // Always use live patient count (from onSnapshot) — not the stale 6-hr report aggregate.
+    // Live occupancy metrics
     const occupiedBeds = activePatients;
-    // Dynamic capacity from Firestore Settings — safe defaults of 0 if not configured
     const totalBeds = facilityConfig.totalBeds;
     const icuTotal = facilityConfig.icuBeds;
     const bedUtilPct = totalBeds > 0 ? (occupiedBeds / totalBeds) * 100 : 0;
@@ -269,8 +274,7 @@ export const HospitalIntelligence: FC<Props> = ({ facilityId }) => {
     const icuStressColor = icuStressPct > 90 ? 'text-red-600' : icuStressPct > 70 ? 'text-yellow-600' : 'text-green-600';
     const icuStressBg = icuStressPct > 90 ? 'bg-red-50' : icuStressPct > 70 ? 'bg-yellow-50' : 'bg-green-50';
 
-    const emergencyCount = curReport.emergencyCases ?? 0;
-    const risk = computeRisk(icuStressPct, emergencyCount, curReport.fluCases ?? 0);
+    const risk = computeRisk(icuStressPct, emergencyCases, curReport.fluCases ?? 0);
     const riskMeta = {
         Low: { label: '🟢 Low', colorClass: 'text-green-700', bgClass: 'bg-green-50' },
         Medium: { label: '🟡 Medium', colorClass: 'text-yellow-700', bgClass: 'bg-yellow-50' },
@@ -466,11 +470,11 @@ export const HospitalIntelligence: FC<Props> = ({ facilityId }) => {
 
             {/* ── 5. Emergency Load Metre ── */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                <EmergencyMeter count={emergencyCount} threshold={20} />
+                <EmergencyMeter count={emergencyCases} threshold={20} />
                 <div className="grid grid-cols-3 gap-3 mt-5">
                     {[
                         { label: 'New Admissions', value: curReport.newAdmissions ?? 0, color: 'bg-blue-50 text-blue-700' },
-                        { label: 'Discharges Today', value: curReport.discharges ?? 0, color: 'bg-emerald-50 text-emerald-700' },
+                        { label: 'Discharges Today', value: dischargesToday, color: 'bg-emerald-50 text-emerald-700' },
                         { label: 'ICU Occupied', value: icuOccupied, color: icuOccupied > 15 ? 'bg-red-50 text-red-700' : 'bg-purple-50 text-purple-700' },
                     ].map((m) => (
                         <div key={m.label} className={`rounded-xl p-3 text-center ${m.color}`}>

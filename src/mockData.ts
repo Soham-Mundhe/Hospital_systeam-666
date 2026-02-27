@@ -9,11 +9,11 @@ export const hospitalStats: Stat[] = [
 ];
 
 export const hospitalPatients: Patient[] = [
-    { id: 'P-101', name: 'John Doe', age: 45, gender: 'M', status: 'admitted', ward: 'Ward A - 101', admissionDate: '2023-10-25', symptoms: ['Fever', 'Cough'] },
-    { id: 'P-102', name: 'Jane Smith', age: 32, gender: 'F', status: 'critical', ward: 'ICU - 04', admissionDate: '2023-10-27', symptoms: ['Difficulty Breathing'] },
-    { id: 'P-103', name: 'Robert Brown', age: 60, gender: 'M', status: 'admitted', ward: 'Ward B - 204', admissionDate: '2023-10-26', symptoms: ['Chest Pain'] },
-    { id: 'P-104', name: 'Emily Davis', age: 28, gender: 'F', status: 'discharged', admissionDate: '2023-10-20', symptoms: ['Recovered'] },
-    { id: 'P-105', name: 'Michael Wilson', age: 55, gender: 'M', status: 'pending', admissionDate: '2023-10-28', symptoms: ['Fracture'] },
+    { id: 'P-101', name: 'John Doe', age: 45, gender: 'M', status: 'admitted', ward: 'Ward A - 101', admissionDate: '2023-10-25', symptoms: ['Fever', 'Cough'], diagnosis: 'flu', icuRequired: false, oxygenRequired: false },
+    { id: 'P-102', name: 'Jane Smith', age: 32, gender: 'F', status: 'critical', ward: 'ICU - 04', admissionDate: '2023-10-27', symptoms: ['Difficulty Breathing'], diagnosis: 'covid', icuRequired: true, oxygenRequired: true },
+    { id: 'P-103', name: 'Robert Brown', age: 60, gender: 'M', status: 'admitted', ward: 'Ward B - 204', admissionDate: '2023-10-26', symptoms: ['Chest Pain'], diagnosis: 'other', icuRequired: false, oxygenRequired: false },
+    { id: 'P-104', name: 'Emily Davis', age: 28, gender: 'F', status: 'discharged', admissionDate: '2023-10-20', symptoms: ['Recovered'], diagnosis: 'flu', icuRequired: false, oxygenRequired: false },
+    { id: 'P-105', name: 'Michael Wilson', age: 55, gender: 'M', status: 'admitted', admissionDate: '2023-10-28', symptoms: ['Fracture'], diagnosis: 'other', icuRequired: false, oxygenRequired: false },
 ];
 
 export const hospitalResources: Resource[] = [

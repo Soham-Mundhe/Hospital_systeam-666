@@ -104,7 +104,7 @@ export const AddPatientModal: FC<Props> = ({ facilityId, onClose, onSuccess }) =
             });
 
             // Trigger automatic 6-hour aggregated report (fire-and-forget)
-            update6HourReport(facilityId, form.admissionDate).catch(console.error);
+            update6HourReport(facilityId).catch(console.error);
             onSuccess();
             onClose();
         } catch (err: unknown) {

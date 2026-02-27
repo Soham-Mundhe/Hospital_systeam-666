@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react';
 import { useState, useEffect } from 'react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import { update6HourReport } from '../../utils/reporting';
@@ -56,6 +56,9 @@ export const BedDetailsModal = ({
         gender: 'M',
         symptoms: '',
         ward: '',
+        diagnosis: 'other' as 'flu' | 'dengue' | 'covid' | 'other',
+        icuRequired: false,
+        oxygenRequired: false,
     });
 
     // ── Fetch patient from Firestore when an occupied bed is selected ──────────
@@ -92,8 +95,11 @@ export const BedDetailsModal = ({
             gender: formData.gender,
             symptoms: formData.symptoms.split(',').map(s => s.trim()),
             ward: formData.ward,
+            diagnosis: formData.diagnosis,
+            icuRequired: formData.icuRequired,
+            oxygenRequired: formData.oxygenRequired,
         });
-        setFormData({ name: '', age: '', gender: 'M', symptoms: '', ward: '' });
+        setFormData({ name: '', age: '', gender: 'M', symptoms: '', ward: '', diagnosis: 'other', icuRequired: false, oxygenRequired: false });
         onClose();
     };
 
@@ -101,12 +107,19 @@ export const BedDetailsModal = ({
         if (!livePatient?.id || !user?.facilityId) { onDischarge(bed.id); return; }
         setIsDischarging(true);
         try {
+            const today = new Date();
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
             await updateDoc(
                 doc(db, 'facilities', user.facilityId, 'patients', livePatient.id),
-                { status: 'discharged' }
+                {
+                    status: 'discharged',
+                    dischargeDate: todayStr,
+                    updatedAt: serverTimestamp()
+                }
             );
-            // Refresh the 6-hour aggregate so CSV export reflects this discharge
-            update6HourReport(user.facilityId).catch(console.error);
+            // Refresh the 6-hour aggregate fresh from collection
+            await update6HourReport(user.facilityId).catch(console.error);
             onDischarge(bed.id);
             onClose();
         } catch (err) {
@@ -322,6 +335,19 @@ export const BedDetailsModal = ({
                                 </div>
                             </div>
                             <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Diagnosis</label>
+                                <select
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm"
+                                    value={formData.diagnosis}
+                                    onChange={e => setFormData({ ...formData, diagnosis: e.target.value as 'flu' | 'dengue' | 'covid' | 'other' })}
+                                >
+                                    <option value="other">Other / Not Specified</option>
+                                    <option value="flu">Flu</option>
+                                    <option value="dengue">Dengue</option>
+                                    <option value="covid">Covid</option>
+                                </select>
+                            </div>
+                            <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Symptoms</label>
                                 <textarea
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm"
@@ -330,6 +356,26 @@ export const BedDetailsModal = ({
                                     value={formData.symptoms}
                                     onChange={e => setFormData({ ...formData, symptoms: e.target.value })}
                                 />
+                            </div>
+                            <div className="flex gap-4">
+                                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        className="w-4 h-4 rounded text-primary"
+                                        checked={formData.icuRequired}
+                                        onChange={e => setFormData({ ...formData, icuRequired: e.target.checked })}
+                                    />
+                                    ICU Required
+                                </label>
+                                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        className="w-4 h-4 rounded text-primary"
+                                        checked={formData.oxygenRequired}
+                                        onChange={e => setFormData({ ...formData, oxygenRequired: e.target.checked })}
+                                    />
+                                    Oxygen Required
+                                </label>
                             </div>
                             <button
                                 type="submit"
