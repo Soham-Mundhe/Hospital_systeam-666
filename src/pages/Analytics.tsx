@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { FC } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -86,9 +86,11 @@ function slotLabelShort(slotId: string): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+type TimeMode = '6H' | 'Daily' | '7Days' | 'Monthly';
+
 export const Analytics: FC = () => {
     const { user } = useAuth();
-    const [timeRange, setTimeRange] = useState<'Weekly' | 'Monthly'>('Weekly');
+    const [timeMode, setTimeMode] = useState<TimeMode>('Daily');
     const [isExporting, setIsExporting] = useState(false);
     const [isMLExporting, setIsMLExporting] = useState(false);
 
@@ -137,9 +139,103 @@ export const Analytics: FC = () => {
         finally { setIsExporting(false); }
     };
 
-    // ── Derived metrics ───────────────────────────────────────────────────────
+    // ── Derived & Aggregated Data ───────────────────────────────────────────
 
-    const filteredReports = timeRange === 'Weekly' ? reports.slice(-28) : reports; // last 28 = 7 days
+    const processedData = useMemo(() => {
+        if (!reports.length) return [];
+
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0];
+
+        if (timeMode === '6H') {
+            return reports.slice(-8).map(r => ({
+                name: slotLabelShort(r.slotId),
+                fullLabel: slotLabel(r.slotId),
+                admissions: r.newAdmissionsToday ?? r.newAdmissions ?? 0,
+                discharges: r.dischargesToday ?? r.discharges ?? 0,
+                icu: r.icuOccupied ?? 0,
+                bedPct: r.bedUtilization != null ? Math.round(r.bedUtilization * 100) : 0,
+                icuPct: r.icuStressIndex != null ? Math.round(r.icuStressIndex * 100) : 0,
+                flu: r.fluCases ?? 0,
+                dengue: r.dengueCases ?? 0,
+                covid: r.covidCases ?? 0,
+                autoFilled: r.autoFilled ?? false,
+                count: 1,
+            }));
+        }
+
+        // Helper to aggregate rows
+        const aggregate = (group: ReportSlot[], label: string) => {
+            const sum = (key: keyof ReportSlot) => group.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+            const avg = (key: keyof ReportSlot) => group.length ? group.reduce((acc, r) => acc + (Number(r[key]) || 0), 0) / group.length : 0;
+
+            return {
+                name: label,
+                fullLabel: label,
+                admissions: sum('newAdmissionsToday') || sum('newAdmissions'),
+                discharges: sum('dischargesToday') || sum('discharges'),
+                icu: Math.round(avg('icuOccupied')),
+                bedPct: Math.round(avg('bedUtilization') * 100),
+                icuPct: Math.round(avg('icuStressIndex') * 100),
+                flu: sum('fluCases'),
+                dengue: sum('dengueCases'),
+                covid: sum('covidCases'),
+                count: group.length,
+                autoFilled: false,
+            };
+        };
+
+        if (timeMode === 'Daily' || timeMode === '7Days') {
+            const grouped: Record<string, ReportSlot[]> = {};
+            reports.forEach(r => {
+                const d = r.date || r.slotId.split('_')[0];
+                if (!grouped[d]) grouped[d] = [];
+                grouped[d].push(r);
+            });
+
+            let days = Object.keys(grouped).sort();
+            if (timeMode === '7Days') {
+                // Rolling 7 days from today
+                const sevenDaysAgo = new Date();
+                sevenDaysAgo.setDate(now.getDate() - 7);
+                const startStr = sevenDaysAgo.toISOString().split('T')[0];
+                days = days.filter(d => d >= startStr);
+            }
+
+            return days.slice(-7).map(d => {
+                const dateObj = new Date(d);
+                const label = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+                return aggregate(grouped[d], label);
+            });
+        }
+
+        if (timeMode === 'Monthly') {
+            const grouped: Record<string, ReportSlot[]> = {};
+            reports.forEach(r => {
+                const month = (r.date || r.slotId.split('_')[0]).slice(0, 7); // YYYY-MM
+                if (!grouped[month]) grouped[month] = [];
+                grouped[month].push(r);
+            });
+
+            return Object.keys(grouped).sort().slice(-6).map(m => {
+                const dateObj = new Date(m + '-01');
+                const label = dateObj.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+                return aggregate(grouped[m], label);
+            });
+        }
+
+        return [];
+    }, [reports, timeMode]);
+
+    // Secondary processing for Disease Distribution
+    const diseaseChartData = useMemo(() => {
+        let data = processedData;
+        if (timeMode === '6H') {
+            // Hide slots where all disease counts are zero
+            data = data.filter(d => (d.flu || 0) + (d.dengue || 0) + (d.covid || 0) > 0);
+        }
+        return data;
+    }, [processedData, timeMode]);
     const handleMLExport = async () => {
         if (!user?.facilityId) return;
         setIsMLExporting(true);
@@ -155,29 +251,6 @@ export const Analytics: FC = () => {
     // Split report type counts
     const freshCount = reports.filter(r => !r.autoFilled).length;
     const filledCount = reports.filter(r => r.autoFilled).length;
-
-    // Chart data
-    const admissionsChart = filteredReports.map(r => ({
-        name: slotLabel(r.slotId),
-        admissions: r.newAdmissionsToday ?? r.newAdmissions ?? 0,
-        discharges: r.dischargesToday ?? r.discharges ?? 0,
-        icu: r.icuOccupied ?? 0,
-        autoFilled: r.autoFilled ?? false,
-    }));
-
-    const occupancyChart = filteredReports.map(r => ({
-        name: slotLabel(r.slotId),
-        bedPct: r.bedUtilization != null ? Math.round(r.bedUtilization * 100) : 0,
-        icuPct: r.icuStressIndex != null ? Math.round(r.icuStressIndex * 100) : 0,
-        autoFilled: r.autoFilled ?? false,
-    }));
-
-    const diseaseChart = filteredReports.map(r => ({
-        name: slotLabel(r.slotId),
-        flu: r.fluCases ?? 0,
-        dengue: r.dengueCases ?? 0,
-        covid: r.covidCases ?? 0,
-    }));
 
     // Stat cards
     const activePatients = patients.filter(p => p.status === 'admitted' || p.status === 'critical').length;
@@ -257,14 +330,14 @@ export const Analytics: FC = () => {
                             </button>
                         </div>
                     )}
-                    <div className="bg-white rounded-lg p-1 border border-gray-200 flex">
-                        {(['Weekly', 'Monthly'] as const).map(t => (
+                    <div className="bg-white rounded-lg p-1 border border-gray-200 flex shadow-sm">
+                        {(['6H', 'Daily', '7Days', 'Monthly'] as const).map(t => (
                             <button
                                 key={t}
-                                onClick={() => setTimeRange(t)}
-                                className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${timeRange === t ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                                onClick={() => setTimeMode(t)}
+                                className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-all ${timeMode === t ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
                             >
-                                {t}
+                                {t === '6H' ? '6H' : t === '7Days' ? '7 Days' : t}
                             </button>
                         ))}
                     </div>
@@ -307,20 +380,21 @@ export const Analytics: FC = () => {
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900">
-                        {user.facilityType === 'hospital' ? 'Admissions vs Discharges (per 6h slot)' :
-                            user.facilityType === 'clinic' ? 'Patient Visits' : 'Tests Conducted'}
+                        {user.facilityType === 'hospital'
+                            ? `Admissions vs Discharges (${timeMode === '7Days' ? '7 Days' : timeMode})`
+                            : user.facilityType === 'clinic' ? 'Patient Visits' : 'Tests Conducted'}
                     </h3>
                     {isLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
                 </div>
 
-                {!isLoading && admissionsChart.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
-                        <Stethoscope className="w-8 h-8" />
-                        <p className="text-sm">No report data yet — add patients to generate reports</p>
+                {!isLoading && processedData.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-64 text-gray-400 gap-2">
+                        <Stethoscope className="w-10 h-10 mb-2 opacity-20" />
+                        <p className="text-sm font-medium">No report data for this period</p>
                     </div>
                 ) : (
-                    <ResponsiveContainer width="100%" height={280}>
-                        <LineChart data={admissionsChart}>
+                    <ResponsiveContainer width="100%" height={320}>
+                        <LineChart data={processedData}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                             <XAxis dataKey="name" tick={{ fill: '#6B7280', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                             <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
@@ -329,19 +403,26 @@ export const Analytics: FC = () => {
                                 content={({ active, payload, label }) => {
                                     if (!active || !payload?.length) return null;
                                     const isAuto = payload[0]?.payload?.autoFilled;
+                                    const fullLabel = payload[0]?.payload?.fullLabel;
                                     return (
-                                        <div className="bg-white rounded-lg shadow-lg border border-gray-100 p-3 text-sm min-w-[150px]">
-                                            <p className="font-semibold text-gray-800 mb-1">{label}</p>
+                                        <div className="bg-white rounded-lg shadow-xl border border-gray-100 p-4 text-sm min-w-[180px]">
+                                            <p className="font-bold text-gray-900 mb-2 border-b pb-1">{fullLabel || label}</p>
                                             {isAuto && (
-                                                <p className="text-xs text-amber-600 font-medium mb-2 flex items-center gap-1">
+                                                <p className="text-[10px] text-amber-600 font-bold mb-3 uppercase tracking-wider flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded">
                                                     <RefreshCw className="w-3 h-3" /> Auto-filled slot
                                                 </p>
                                             )}
-                                            {payload.map((p, i) => (
-                                                <p key={i} style={{ color: p.color }} className="flex justify-between gap-4">
-                                                    <span>{p.name}</span><span className="font-bold">{p.value}</span>
-                                                </p>
-                                            ))}
+                                            <div className="space-y-1.5">
+                                                {payload.map((p, i) => (
+                                                    <div key={i} className="flex justify-between items-center gap-4">
+                                                        <span className="flex items-center gap-2 text-gray-600">
+                                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
+                                                            {p.name}
+                                                        </span>
+                                                        <span className="font-bold tabular-nums" style={{ color: p.color }}>{p.value}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     );
                                 }}
@@ -355,56 +436,65 @@ export const Analytics: FC = () => {
                 )}
             </div>
 
-            {/* ── Bed Utilization Over Time ── */}
-            {user.facilityType === 'hospital' && occupancyChart.some(r => r.bedPct > 0) && (
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Bed &amp; ICU Utilization % (per slot)</h3>
-                    <ResponsiveContainer width="100%" height={220}>
-                        <AreaChart data={occupancyChart}>
-                            <defs>
-                                <linearGradient id="bedGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
-                                </linearGradient>
-                                <linearGradient id="icuGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#f87171" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                            <XAxis dataKey="name" tick={{ fill: '#6B7280', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                            <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} unit="%" />
-                            <Tooltip {...tooltipStyle} />
-                            <Legend />
-                            <Area type="monotone" dataKey="bedPct" name="Bed Utilization %" stroke="#60a5fa" fill="url(#bedGrad)" strokeWidth={2} />
-                            <Area type="monotone" dataKey="icuPct" name="ICU Stress %" stroke="#f87171" fill="url(#icuGrad)" strokeWidth={2} />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </div>
-            )}
+            {/* ── Charts Grid ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* ── Bed Utilization Over Time ── */}
+                {user.facilityType === 'hospital' && processedData.length > 0 && (
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm h-full flex flex-col">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-6">Bed &amp; ICU Utilization % ({timeMode})</h3>
+                        <div className="flex-1 min-h-[260px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={processedData}>
+                                    <defs>
+                                        <linearGradient id="bedGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
+                                        </linearGradient>
+                                        <linearGradient id="icuGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#f87171" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                    <XAxis dataKey="name" tick={{ fill: '#6B7280', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                                    <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} unit="%" />
+                                    <Tooltip {...tooltipStyle} />
+                                    <Legend />
+                                    <Area type="monotone" dataKey="bedPct" name="Bed Utilization %" stroke="#60a5fa" fill="url(#bedGrad)" strokeWidth={2} />
+                                    <Area type="monotone" dataKey="icuPct" name="ICU Stress %" stroke="#f87171" fill="url(#icuGrad)" strokeWidth={2} />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                )}
 
-            {/* ── Disease Distribution Chart ── */}
-            {user.facilityType === 'hospital' && (
-                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Disease Distribution by Slot</h3>
-                    {diseaseChart.length === 0 ? (
-                        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">No disease data yet</div>
-                    ) : (
-                        <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={diseaseChart}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                                <XAxis dataKey="name" tick={{ fill: '#6B7280', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                                <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                                <Tooltip {...tooltipStyle} />
-                                <Legend />
-                                <Bar dataKey="flu" name="Flu" fill="#fbbf24" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="dengue" name="Dengue" fill="#f87171" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="covid" name="Covid" fill="#818cf8" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    )}
-                </div>
-            )}
+                {/* ── Disease Distribution Chart ── */}
+                {user.facilityType === 'hospital' && (
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm h-full flex flex-col">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-6">Disease Distribution ({timeMode})</h3>
+                        {diseaseChartData.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center flex-1 text-gray-400 text-sm italic">
+                                No disease reports for this period
+                            </div>
+                        ) : (
+                            <div className="flex-1 min-h-[260px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={diseaseChartData}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                        <XAxis dataKey="name" tick={{ fill: '#6B7280', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                                        <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                                        <Tooltip {...tooltipStyle} />
+                                        <Legend />
+                                        <Bar dataKey="covid" name="Covid" fill="#3B82F6" stackId={timeMode !== '6H' ? 'a' : undefined} radius={timeMode !== '6H' ? [0, 0, 0, 0] : [4, 4, 0, 0]} />
+                                        <Bar dataKey="dengue" name="Dengue" fill="#EF4444" stackId={timeMode !== '6H' ? 'a' : undefined} radius={timeMode !== '6H' ? [0, 0, 0, 0] : [4, 4, 0, 0]} />
+                                        <Bar dataKey="flu" name="Flu" fill="#EAB308" stackId={timeMode !== '6H' ? 'a' : undefined} radius={[4, 4, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
 
             {/* ── Bottom row: summaries + slot timeline ── */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
