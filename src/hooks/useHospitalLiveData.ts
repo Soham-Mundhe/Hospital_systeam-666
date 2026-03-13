@@ -142,7 +142,7 @@ export function useHospitalLiveData(facilityId: string): HospitalLiveData {
 
     // Active patients counted directly from patient docs (source of truth)
     const activePatients = patients.filter(p => p.status === 'admitted' || p.status === 'critical').length;
-    const icuOccupied = patients.filter(p => p.icuRequired === true).length;
+    const icuOccupied = patients.filter(p => (p.status === 'admitted' || p.status === 'critical') && p.icuRequired === true).length;
     const admissionsToday = patients.filter(p => p.admissionDate === today).length;
 
     // Capacity values from Settings (facility doc)

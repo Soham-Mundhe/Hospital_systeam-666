@@ -166,14 +166,17 @@ export const Analytics: FC = () => {
 
         // Helper to aggregate rows
         const aggregate = (group: ReportSlot[], label: string) => {
-            const sum = (key: keyof ReportSlot) => group.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+            const max = (key: keyof ReportSlot) => group.reduce((acc, r) => Math.max(acc, Number(r[key]) || 0), 0);
             const avg = (key: keyof ReportSlot) => group.length ? group.reduce((acc, r) => acc + (Number(r[key]) || 0), 0) / group.length : 0;
+            const sum = (key: keyof ReportSlot) => group.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
 
             return {
                 name: label,
                 fullLabel: label,
-                admissions: sum('newAdmissionsToday') || sum('newAdmissions'),
-                discharges: sum('dischargesToday') || sum('discharges'),
+                // admissions & discharges are cumulative daily totals in each slot —
+                // use max (not sum) to get the correct final daily count.
+                admissions: max('newAdmissionsToday') || max('newAdmissions'),
+                discharges: max('dischargesToday') || max('discharges'),
                 icu: Math.round(avg('icuOccupied')),
                 bedPct: Math.round(avg('bedUtilization') * 100),
                 icuPct: Math.round(avg('icuStressIndex') * 100),

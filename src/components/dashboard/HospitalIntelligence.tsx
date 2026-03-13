@@ -255,9 +255,11 @@ export const HospitalIntelligence: FC<Props> = ({ facilityId }) => {
     const icuOccupied = patients.filter((p) => p.icuRequired === true && (p.status === 'admitted' || p.status === 'critical')).length;
     const emergencyCases = patients.filter((p) => p.status === 'critical').length;
 
-    // Calculate live discharges today
+    // Calculate live discharges and admissions today
     const todayStr = localDate(new Date());
     const dischargesToday = patients.filter((p) => p.status === 'discharged' && p.dischargeDate === todayStr).length;
+    const newAdmissionsToday = patients.filter((p) => p.admissionDate === todayStr).length;
+
 
     // Pull report data for trend and comparison
     const curSlot = getCurrent6HourSlot();
@@ -473,7 +475,7 @@ export const HospitalIntelligence: FC<Props> = ({ facilityId }) => {
                 <EmergencyMeter count={emergencyCases} threshold={20} />
                 <div className="grid grid-cols-3 gap-3 mt-5">
                     {[
-                        { label: 'New Admissions', value: curReport.newAdmissions ?? 0, color: 'bg-blue-50 text-blue-700' },
+                        { label: 'New Admissions', value: newAdmissionsToday, color: 'bg-blue-50 text-blue-700' },
                         { label: 'Discharges Today', value: dischargesToday, color: 'bg-emerald-50 text-emerald-700' },
                         { label: 'ICU Occupied', value: icuOccupied, color: icuOccupied > 15 ? 'bg-red-50 text-red-700' : 'bg-purple-50 text-purple-700' },
                     ].map((m) => (

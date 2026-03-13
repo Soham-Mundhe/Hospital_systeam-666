@@ -105,6 +105,14 @@ export async function update6HourReport(facilityId: string): Promise<void> {
                     date: mDate,
                     slot: mSlot,
                     timestamp: serverTimestamp(),
+                    // Zero out daily counters — these are "events on this day" fields,
+                    // not persistent state. Copying them forward causes Analytics to
+                    // sum the same admission/discharge multiple times across slots.
+                    newAdmissionsToday: 0,
+                    newAdmissions: 0,
+                    dischargesToday: 0,
+                    discharges: 0,
+                    autoFilled: true,
                 };
 
                 await setDoc(doc(db, 'facilities', facilityId, 'reports', missingSlotId), backfillPayload, { merge: true });
@@ -177,7 +185,7 @@ export async function update6HourReport(facilityId: string): Promise<void> {
  */
 export async function generateScheduledReport(
     facilityId: string,
-    slotId: string
+    _slotId: string
 ): Promise<void> {
     if (!facilityId) return;
     // Always trigger update6HourReport which includes backfill and current recalculation
