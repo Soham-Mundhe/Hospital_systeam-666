@@ -109,32 +109,6 @@ export const Dashboard: FC = () => {
         navigate(`/records?patient=${patientId}`);
     };
 
-    const handleBedCountChange = (newCount: number, type: Bed['type'] = 'general') => {
-        setBeds(prevBeds => {
-            const currentCount = prevBeds.length;
-            if (newCount > currentCount) {
-                // Add new beds
-                const newBeds: Bed[] = [];
-                for (let i = currentCount; i < newCount; i++) {
-                    const prefix = type === 'icu' ? 'I' : type === 'pediatric' ? 'P' : 'G';
-                    const ward = type === 'icu' ? 'ICU' : type === 'pediatric' ? 'Pediatric Ward' : 'General Ward';
-
-                    newBeds.push({
-                        id: `B-${Date.now()}-${i}`,
-                        ward: ward,
-                        number: `${prefix}-${i + 1}`,
-                        status: 'available',
-                        type: type
-                    });
-                }
-                return [...prevBeds, ...newBeds];
-            } else if (newCount < currentCount) {
-                // Remove beds from the end
-                return prevBeds.slice(0, newCount);
-            }
-            return prevBeds;
-        });
-    };
 
     // Hospital Layout: High-density command center
     if (user.facilityType === 'hospital') {

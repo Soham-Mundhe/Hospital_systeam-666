@@ -84,7 +84,6 @@ function slotLabelShort(slotId: string): string {
     }
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
 
 type TimeMode = '6H' | 'Daily' | '7Days' | 'Monthly';
 
@@ -145,7 +144,6 @@ export const Analytics: FC = () => {
         if (!reports.length) return [];
 
         const now = new Date();
-        const todayStr = now.toISOString().split('T')[0];
 
         if (timeMode === '6H') {
             return reports.slice(-8).map(r => ({
@@ -626,6 +624,3 @@ const DiseaseBadge: FC<{ label: string; count: number; color: string }> = ({ lab
     </div>
 );
 
-// Unused helper kept for potential future axis use
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _slotLabelShort = slotLabelShort;

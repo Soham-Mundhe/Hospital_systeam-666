@@ -3,7 +3,6 @@ import type { FormEvent } from 'react';
 import { X, CheckCircle2, Loader2 } from 'lucide-react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
-import type { Staff } from '../../types';
 
 export interface AddStaffModalProps {
     isOpen: boolean;
