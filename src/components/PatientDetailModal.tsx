@@ -16,6 +16,7 @@ import {
     Loader2, Hash, HeartPulse
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { ReadmissionCheckModal } from './dashboard/ReadmissionCheckModal';
 
 interface Props {
     facilityId: string;
@@ -75,6 +76,7 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
     const [patient, setPatient] = useState<PatientDoc | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [isReadmissionModalOpen, setIsReadmissionModalOpen] = useState(false);
 
     useEffect(() => {
         setIsLoading(true);
@@ -294,15 +296,30 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
                 </div>
 
                 {/* ── Footer ── */}
-                <div className="px-6 py-4 border-t border-gray-100 flex justify-end shrink-0">
+                <div className="px-6 py-4 border-t border-gray-100 flex justify-between shrink-0">
                     <button
                         onClick={onClose}
                         className="px-5 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors"
                     >
                         Close
                     </button>
+                    {patient && !isLoading && patient.status?.toLowerCase() !== 'discharged' && (
+                        <button
+                            onClick={() => setIsReadmissionModalOpen(true)}
+                            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700 transition-colors shadow-sm"
+                        >
+                            <Activity className="w-4 h-4" />
+                            Check Readmission Rate
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {/* Readmission Check Modal */}
+            <ReadmissionCheckModal
+                isOpen={isReadmissionModalOpen}
+                onClose={() => setIsReadmissionModalOpen(false)}
+            />
         </div>
     );
 };

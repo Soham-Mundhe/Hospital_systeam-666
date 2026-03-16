@@ -9,7 +9,6 @@ import { PatientQueue } from '../components/dashboard/PatientQueue';
 import { AppointmentTimeline } from '../components/dashboard/AppointmentTimeline';
 import { SamplePipeline } from '../components/dashboard/SamplePipeline';
 import { HospitalIntelligence } from '../components/dashboard/HospitalIntelligence';
-import { PatientCheckInModal } from '../components/dashboard/PatientCheckInModal';
 import { RecentCheckIns } from '../components/dashboard/RecentCheckIns';
 import { useNavigate } from 'react-router-dom';
 import type { Bed, Patient } from '../types';
@@ -17,14 +16,10 @@ import { BedDetailsModal } from '../components/dashboard/BedDetailsModal';
 import { useHospitalLiveData } from '../hooks/useHospitalLiveData';
 import { useLiveBeds } from '../hooks/useLiveBeds';
 import { clsx } from 'clsx';
-import { QrCode } from 'lucide-react';
 
 export const Dashboard: FC = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
-
-    // State for QR Check-In modal
-    const [showQRModal, setShowQRModal] = useState(false);
 
     // State for Bed Management (non-hospital facility mock beds kept for modal flow)
     const [beds, setBeds] = useState<Bed[]>([]);
@@ -159,16 +154,6 @@ export const Dashboard: FC = () => {
             <div className="space-y-6">
                 <div className="flex justify-between items-end">
                     <div className="flex items-center gap-3">
-                        {/* QR Check-In Button — upper-left */}
-                        <button
-                            id="patient-checkin-qr-btn"
-                            onClick={() => setShowQRModal(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all shadow-sm"
-                            title="Open Patient Check-In QR"
-                        >
-                            <QrCode className="w-4 h-4" />
-                            <span>Patient Check-In QR</span>
-                        </button>
                         <div>
                             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
                                 Hospital Command Center
@@ -280,11 +265,6 @@ export const Dashboard: FC = () => {
                     onDischarge={handleDischargePatient}
                     onClean={handleCleanBed}
                     onViewRecord={handleViewRecord}
-                />
-                <PatientCheckInModal
-                    isOpen={showQRModal}
-                    onClose={() => setShowQRModal(false)}
-                    facilityId={user.facilityId}
                 />
             </div>
         );

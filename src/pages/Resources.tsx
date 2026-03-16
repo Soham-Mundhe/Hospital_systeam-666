@@ -3,7 +3,8 @@ import type { FC } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { collection, onSnapshot, setDoc, doc, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { hospitalResources, clinicResources, labResources } from '../mockData';
+import { useHospitalLiveData } from '../hooks/useHospitalLiveData';
+import { clinicResources, labResources } from '../mockData';
 import { ProgressBar } from '../components/ProgressBar';
 import { Package, AlertCircle, Wifi, RefreshCw, Plus } from 'lucide-react';
 
@@ -22,8 +23,10 @@ export const Resources: FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [lastSync, setLastSync] = useState<Date | null>(null);
 
+    const liveData = useHospitalLiveData(user?.facilityType === 'hospital' ? user.facilityId : '');
+
     useEffect(() => {
-        if (!user?.facilityId) return;
+        if (!user?.facilityId || user.facilityType === 'hospital') return;
 
         const collectionRef = collection(db, 'facilities', user.facilityId, 'inventory');
 
@@ -31,8 +34,7 @@ export const Resources: FC = () => {
         const checkAndPopulate = async () => {
             const snap = await getDocs(collectionRef);
             if (snap.empty) {
-                const mocks = user.facilityType === 'hospital' ? hospitalResources :
-                    user.facilityType === 'clinic' ? clinicResources : labResources;
+                const mocks = user.facilityType === 'clinic' ? clinicResources : labResources;
 
                 await Promise.all(mocks.map(m =>
                     setDoc(doc(collectionRef, m.name.replace(/\s+/g, '_').toLowerCase()), {
@@ -63,6 +65,21 @@ export const Resources: FC = () => {
 
     if (!user) return null;
 
+    // Determine final data source
+    const isHospital = user.facilityType === 'hospital';
+    const finalIsLoading = isHospital ? !liveData.isLoaded : isLoading;
+    const finalLastSync = isHospital ? liveData.lastSync : lastSync;
+
+    let finalResources = resources;
+    if (isHospital) {
+        finalResources = [
+            { id: 'beds', name: 'General Beds', total: liveData.totalBeds, available: liveData.totalBeds - liveData.occupiedBeds, unit: 'beds' },
+            { id: 'icu', name: 'ICU Beds', total: liveData.icuBeds, available: liveData.icuBeds - liveData.icuOccupied, unit: 'beds' },
+            { id: 'oxygen', name: 'Oxygen Cylinders', total: liveData.oxygenUnits, available: liveData.oxygenUnits, unit: 'units' }, // Assuming static capacity for now
+            { id: 'ventilators', name: 'Ventilators', total: liveData.ventilators, available: liveData.ventilators, unit: 'units' },
+        ];
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -73,10 +90,10 @@ export const Resources: FC = () => {
                     </h1>
                     <div className="flex items-center gap-3 mt-1 flex-wrap">
                         <p className="text-gray-500 text-sm">Monitor inventory and equipment status.</p>
-                        {lastSync && (
+                        {finalLastSync && (
                             <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
                                 <Wifi className="w-3 h-3" />
-                                Live · {lastSync.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                Live · {finalLastSync.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                             </span>
                         )}
                     </div>
@@ -87,13 +104,13 @@ export const Resources: FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {isLoading ? (
+                {finalIsLoading ? (
                     [1, 2, 3].map(i => (
                         <div key={i} className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm animate-pulse h-40" />
                     ))
-                ) : resources.length > 0 ? (
-                    resources.map((res) => {
-                        const isLow = res.available / res.total < 0.2;
+                ) : finalResources.length > 0 ? (
+                    finalResources.map((res) => {
+                        const isLow = res.total > 0 && res.available / res.total < 0.2;
                         return (
                             <div key={res.id} className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
                                 <div className="flex justify-between items-start mb-4">
@@ -136,7 +153,7 @@ export const Resources: FC = () => {
                 )}
 
                 {/* Request Restock Card */}
-                {!isLoading && (
+                {!finalIsLoading && (
                     <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary transition-all cursor-pointer min-h-[160px] group">
                         <div className="bg-gray-50 group-hover:bg-blue-50 p-4 rounded-full transition-colors mb-3">
                             <RefreshCw className="w-8 h-8 group-hover:rotate-180 transition-transform duration-500" />

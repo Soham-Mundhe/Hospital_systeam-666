@@ -40,7 +40,7 @@ export const Sidebar: FC = () => {
                             {user.facilityType === 'hospital' ? 'H' : user.facilityType === 'clinic' ? 'C' : 'L'}
                         </span>
                     </div>
-                    <span className="font-bold text-lg tracking-wide">MedDash</span>
+                    <span className="font-bold text-lg tracking-wide">ReCare</span>
                 </div>
             </div>
 

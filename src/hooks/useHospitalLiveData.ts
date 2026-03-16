@@ -64,6 +64,7 @@ export interface HospitalLiveData {
     occupiedBeds: number;
     icuOccupied: number;
     oxygenUnits: number;
+    ventilators: number;
     emergencyCases: number;
     newAdmissions: number;
     discharges: number;
@@ -149,6 +150,7 @@ export function useHospitalLiveData(facilityId: string): HospitalLiveData {
     const totalBeds = config.totalBeds ?? 0;
     const icuBeds = config.icuBeds ?? 0;
     const oxygenUnits = config.oxygenUnits ?? 0;
+    const ventilators = config.ventilators ?? 0;
 
     // Always use live patient count as source of truth.
     // report.occupiedBeds is a stale 6-hr aggregate — DO NOT use it for real-time display.
@@ -186,6 +188,7 @@ export function useHospitalLiveData(facilityId: string): HospitalLiveData {
         occupiedBeds,
         icuOccupied,
         oxygenUnits,
+        ventilators,
         emergencyCases,
         newAdmissions,
         discharges,

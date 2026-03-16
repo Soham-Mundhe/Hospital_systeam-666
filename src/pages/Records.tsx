@@ -25,6 +25,7 @@ export const Records: FC = () => {
     const { user } = useAuth();
     const [searchParams, setSearchParams] = useSearchParams();
     const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+    const [statusFilter, setStatusFilter] = useState('All');
     const [showAddModal, setShowAddModal] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [selectedPatientDocId, setSelectedPatientDocId] = useState<string | null>(null);
@@ -99,7 +100,9 @@ export const Records: FC = () => {
     const term = searchTerm.toLowerCase();
     const filteredRecords = records.filter(p => {
         const searchableString = JSON.stringify(p).toLowerCase();
-        return searchableString.includes(term);
+        const matchesSearch = searchableString.includes(term);
+        const matchesStatus = statusFilter === 'All' || (p.status?.toLowerCase() === statusFilter.toLowerCase());
+        return matchesSearch && matchesStatus;
     });
 
     const getAccessLevel = (role: Role) => {
@@ -134,6 +137,23 @@ export const Records: FC = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto items-end">
+                    {/* Status Filter Dropdown — Hospital Only */}
+                    {user?.facilityType === 'hospital' && (
+                        <div className="flex flex-col gap-1 w-full sm:w-auto">
+                            <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Clinical Status</label>
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                className="bg-white border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2 outline-none shadow-sm"
+                            >
+                                <option value="All">All Patients</option>
+                                <option value="Admitted">Admitted</option>
+                                <option value="Critical">Critical</option>
+                                <option value="Discharged">Discharged</option>
+                            </select>
+                        </div>
+                    )}
+
                     {/* Role Simulator Dropdown */}
                     <div className="flex flex-col gap-1 w-full sm:w-auto">
                         <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Simulation Mode</label>
