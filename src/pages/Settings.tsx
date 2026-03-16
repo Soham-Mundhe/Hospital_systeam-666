@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import {
     BedDouble, Activity, AlertTriangle, Wind, Cpu,
-    Loader2, CheckCircle, Lock, Settings as SettingsIcon
+    Loader2, CheckCircle, Lock, Settings as SettingsIcon,
+    FileDown, Download
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -122,6 +123,7 @@ export const Settings: FC = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [success, setSuccess] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'capacity' | 'data'>('capacity');
 
     // Real-time listener on facility doc
     useEffect(() => {
@@ -189,7 +191,7 @@ export const Settings: FC = () => {
     // ─────────────────────────────────────────────────────────────────────────
 
     return (
-        <div className="space-y-8 max-w-2xl mx-auto">
+        <div className="space-y-8 max-w-5xl mx-auto">
 
             {/* ── Header ────────────────────────────────────────────────────── */}
             <div className="flex items-start justify-between">
@@ -226,7 +228,39 @@ export const Settings: FC = () => {
             {/* ── Hospital — Admin view ─────────────────────────────────────── */}
             {user.facilityType === 'hospital' ? (
                 simulatedRole === 'Admin' ? (
-                    <form onSubmit={handleSave} className="space-y-6">
+                    <div className="flex flex-col md:flex-row gap-8 items-start">
+                        {/* ── Left Sidebar Tabs ── */}
+                        <div className="w-full md:w-64 shrink-0 flex flex-col gap-2">
+                            <button
+                                onClick={() => setActiveTab('capacity')}
+                                className={clsx(
+                                    'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all text-left w-full',
+                                    activeTab === 'capacity'
+                                        ? 'bg-blue-50 text-blue-700 shadow-[inset_4px_0_0_0] shadow-blue-500'
+                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                )}
+                            >
+                                <BedDouble className={clsx("w-4 h-4", activeTab === 'capacity' ? "text-blue-600" : "text-gray-400")} />
+                                Hospital Capacity Settings
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('data')}
+                                className={clsx(
+                                    'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all text-left w-full',
+                                    activeTab === 'data'
+                                        ? 'bg-blue-50 text-blue-700 shadow-[inset_4px_0_0_0] shadow-blue-500'
+                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                )}
+                            >
+                                <FileDown className={clsx("w-4 h-4", activeTab === 'data' ? "text-blue-600" : "text-gray-400")} />
+                                Data & Exports
+                            </button>
+                        </div>
+
+                        {/* ── Right Content Area ── */}
+                        <div className="flex-1 min-w-0 w-full">
+                            {activeTab === 'capacity' ? (
+                                <form onSubmit={handleSave} className="space-y-6">
 
                         {/* ╔═══════════════════════════════════╗
                             ║  Hospital Capacity Settings Card  ║
@@ -373,27 +407,139 @@ export const Settings: FC = () => {
                         )}
                     </form>
                 ) : (
-                    /* Non-Admin lock screen */
-                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-12 flex flex-col items-center text-center gap-4">
-                        <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center">
-                            <Lock className="w-8 h-8 text-gray-400" />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-gray-700 text-lg">Admin Access Required</h3>
-                            <p className="text-sm text-gray-400 max-w-xs mt-1">
-                                Capacity settings can only be modified by an <strong>Admin</strong>.
-                                Use the role simulator above to switch.
-                            </p>
-                        </div>
-                    </div>
+                    /* Data Tab Content */
+                    <ExportDataCard facilityId={user.facilityId} />
+                )}
+            </div>
+        </div>
+    ) : (
+        /* Non-Admin lock screen */
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-12 flex flex-col items-center text-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center">
+                <Lock className="w-8 h-8 text-gray-400" />
+            </div>
+            <div>
+                <h3 className="font-bold text-gray-700 text-lg">Admin Access Required</h3>
+                <p className="text-sm text-gray-400 max-w-xs mt-1">
+                    Capacity settings can only be modified by an <strong>Admin</strong>.
+                    Use the role simulator above to switch.
+                </p>
+            </div>
+        </div>
+    )
+) : (
+    /* Non-hospital facilities */
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-12 flex flex-col items-center text-center gap-3">
+        <SettingsIcon className="w-12 h-12 text-gray-200" />
+        <p className="text-sm text-gray-400">Settings are only available for Hospital facilities.</p>
+    </div>
+)}
+        </div>
+    );
+};
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+interface CheckInRecord {
+    patient_id: string;
+    name: string;
+    age: number;
+    gender: string;
+    disease: string;
+    previous_admissions: number;
+    medications: string;
+    blood_pressure: string;
+    glucose_level: string;
+    visit_date: string;
+}
+
+const ExportDataCard: FC<{ facilityId: string }> = ({ facilityId }) => {
+    const [exporting, setExporting] = useState(false);
+
+    const handleExportCSV = async () => {
+        setExporting(true);
+        try {
+            const snap = await getDocs(
+                query(
+                    collection(db, 'facilities', facilityId, 'checkins'),
+                    orderBy('visit_date', 'desc')
                 )
-            ) : (
-                /* Non-hospital facilities */
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-12 flex flex-col items-center text-center gap-3">
-                    <SettingsIcon className="w-12 h-12 text-gray-200" />
-                    <p className="text-sm text-gray-400">Settings are only available for Hospital facilities.</p>
+            );
+
+            const headers = [
+                'patient_id', 'name', 'age', 'gender', 'disease',
+                'previous_admissions', 'medications', 'blood_pressure',
+                'glucose_level', 'visit_date'
+            ];
+
+            const rows = snap.docs.map(d => {
+                const r = d.data() as CheckInRecord;
+                return [
+                    r.patient_id ?? '',
+                    r.name ?? '',
+                    r.age ?? '',
+                    r.gender ?? '',
+                    r.disease ?? '',
+                    r.previous_admissions ?? '',
+                    r.medications ?? '',
+                    r.blood_pressure ?? '',
+                    r.glucose_level ?? '',
+                    r.visit_date ?? '',
+                ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+            });
+
+            const csvContent = [headers.join(','), ...rows].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `patient_checkins_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('[ExportDataCard] CSV export error:', err);
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    return (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-white">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center shadow-sm">
+                    <FileDown className="w-5 h-5 text-white" />
                 </div>
-            )}
+                <div>
+                    <h2 className="text-sm font-bold text-gray-800">Data & Exports</h2>
+                    <p className="text-xs text-gray-400">
+                        Download system data for offline analysis and reporting.
+                    </p>
+                </div>
+            </div>
+            <div className="p-6">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-sm font-bold text-gray-700">Patient Check-In Records</h3>
+                        <p className="text-xs text-gray-500 mt-1 max-w-sm">
+                            Export all check-in entries submitted via the QR portal. The CSV file includes patient details, vitals, and visit dates.
+                        </p>
+                    </div>
+                    <button
+                        onClick={handleExportCSV}
+                        disabled={exporting}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-all shadow-sm"
+                    >
+                        {exporting ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Download className="w-4 h-4" />
+                        )}
+                        {exporting ? 'Exporting…' : 'Export CSV'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };

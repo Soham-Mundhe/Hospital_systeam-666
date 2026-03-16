@@ -9,6 +9,7 @@ import { Resources } from './pages/Resources';
 import { Analytics } from './pages/Analytics';
 import { Staff } from './pages/Staff';
 import { Settings } from './pages/Settings';
+import { CheckIn } from './pages/CheckIn';
 import { Layout } from './components/Layout';
 import { useScheduledReporting } from './hooks/useScheduledReporting';
 import { useBackfillReports } from './hooks/useBackfillReports';
@@ -88,6 +89,9 @@ function AppRoutes() {
           <Settings />
         </ProtectedRoute>
       } />
+
+      {/* Public patient check-in portal — no auth required */}
+      <Route path="/checkin" element={<CheckIn />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
