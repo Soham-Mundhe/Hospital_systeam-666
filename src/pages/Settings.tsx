@@ -6,9 +6,10 @@ import { useAuth } from '../context/AuthContext';
 import {
     BedDouble, Activity, AlertTriangle, Wind, Cpu,
     Loader2, CheckCircle, Lock, Settings as SettingsIcon,
-    FileDown, Download
+    FileDown, Download, Stethoscope
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { exportCSV, exportMLCSV } from '../utils/reporting';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -454,10 +455,12 @@ interface CheckInRecord {
 }
 
 const ExportDataCard: FC<{ facilityId: string }> = ({ facilityId }) => {
-    const [exporting, setExporting] = useState(false);
+    const [exportingCheckins, setExportingCheckins] = useState(false);
+    const [exportingCSV, setExportingCSV] = useState(false);
+    const [exportingML, setExportingML] = useState(false);
 
-    const handleExportCSV = async () => {
-        setExporting(true);
+    const handleExportCheckins = async () => {
+        setExportingCheckins(true);
         try {
             const snap = await getDocs(
                 query(
@@ -501,8 +504,22 @@ const ExportDataCard: FC<{ facilityId: string }> = ({ facilityId }) => {
         } catch (err) {
             console.error('[ExportDataCard] CSV export error:', err);
         } finally {
-            setExporting(false);
+            setExportingCheckins(false);
         }
+    };
+
+    const handleAnalyticsExport = async () => {
+        setExportingCSV(true);
+        try { await exportCSV(facilityId); }
+        catch { alert('Export failed. Please try again.'); }
+        finally { setExportingCSV(false); }
+    };
+
+    const handleAnalyticsMLExport = async () => {
+        setExportingML(true);
+        try { await exportMLCSV(facilityId); }
+        catch (err) { console.error('ML Export failed:', err); }
+        finally { setExportingML(false); }
     };
 
     return (
@@ -518,8 +535,41 @@ const ExportDataCard: FC<{ facilityId: string }> = ({ facilityId }) => {
                     </p>
                 </div>
             </div>
-            <div className="p-6">
+            <div className="p-6 space-y-6">
                 <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-sm font-bold text-gray-700">Analytics Data</h3>
+                        <p className="text-xs text-gray-500 mt-1 max-w-sm">
+                            Export comprehensive hospital analytics including admissions, discharges, ICU capacity, and disease trends.
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleAnalyticsExport}
+                            disabled={exportingCSV || exportingML || exportingCheckins}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg shadow-sm transition-all"
+                        >
+                            {exportingCSV ? (
+                                <><Loader2 className="w-4 h-4 animate-spin" />Exporting…</>
+                            ) : (
+                                <><Download className="w-4 h-4" />Export CSV</>
+                            )}
+                        </button>
+                        <button
+                            onClick={handleAnalyticsMLExport}
+                            disabled={exportingCSV || exportingML || exportingCheckins}
+                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg shadow-sm transition-all"
+                        >
+                            {exportingML ? (
+                                <><Loader2 className="w-4 h-4 animate-spin" />Preparing…</>
+                            ) : (
+                                <><Stethoscope className="w-4 h-4" />Export ML-Ready</>
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="border-t border-gray-100 pt-6 flex items-center justify-between">
                     <div>
                         <h3 className="text-sm font-bold text-gray-700">Patient Check-In Records</h3>
                         <p className="text-xs text-gray-500 mt-1 max-w-sm">
@@ -527,16 +577,16 @@ const ExportDataCard: FC<{ facilityId: string }> = ({ facilityId }) => {
                         </p>
                     </div>
                     <button
-                        onClick={handleExportCSV}
-                        disabled={exporting}
+                        onClick={handleExportCheckins}
+                        disabled={exportingCheckins || exportingCSV || exportingML}
                         className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-all shadow-sm"
                     >
-                        {exporting ? (
+                        {exportingCheckins ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
                             <Download className="w-4 h-4" />
                         )}
-                        {exporting ? 'Exporting…' : 'Export CSV'}
+                        {exportingCheckins ? 'Exporting…' : 'Export Check-Ins'}
                     </button>
                 </div>
             </div>

@@ -5,10 +5,9 @@ import {
     LineChart, Line, XAxis, YAxis, CartesianGrid,
     Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar, Legend,
 } from 'recharts';
-import { Download, Loader2, Activity, TrendingUp, Users, Clock, Stethoscope, Wifi, Zap, RefreshCw } from 'lucide-react';
+import { Loader2, Activity, TrendingUp, Users, Clock, Wifi, Zap, RefreshCw, Stethoscope } from 'lucide-react';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
-import { exportCSV, exportMLCSV } from '../utils/reporting';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -90,8 +89,6 @@ type TimeMode = '6H' | 'Daily' | '7Days' | 'Monthly';
 export const Analytics: FC = () => {
     const { user } = useAuth();
     const [timeMode, setTimeMode] = useState<TimeMode>('Daily');
-    const [isExporting, setIsExporting] = useState(false);
-    const [isMLExporting, setIsMLExporting] = useState(false);
 
     // ── Live Firestore data ──────────────────────────────────────────────────
     const [reports, setReports] = useState<ReportSlot[]>([]);
@@ -129,14 +126,6 @@ export const Analytics: FC = () => {
 
         return () => { rUnsub(); pUnsub(); };
     }, [user?.facilityId]);
-
-    const handleExport = async () => {
-        if (!user) return;
-        setIsExporting(true);
-        try { await exportCSV(user.facilityId); }
-        catch { alert('Export failed. Please try again.'); }
-        finally { setIsExporting(false); }
-    };
 
     // ── Derived & Aggregated Data ───────────────────────────────────────────
 
@@ -236,17 +225,6 @@ export const Analytics: FC = () => {
         }
         return data;
     }, [processedData, timeMode]);
-    const handleMLExport = async () => {
-        if (!user?.facilityId) return;
-        setIsMLExporting(true);
-        try {
-            await exportMLCSV(user.facilityId);
-        } catch (err) {
-            console.error('ML Export failed:', err);
-        } finally {
-            setIsMLExporting(false);
-        }
-    };
 
     // Split report type counts
     const freshCount = reports.filter(r => !r.autoFilled).length;
@@ -306,30 +284,6 @@ export const Analytics: FC = () => {
                 </div>
 
                 <div className="flex items-center gap-3 flex-wrap">
-                    {user.facilityType === 'hospital' && (
-                        <div className="flex gap-2">
-                            <button
-                                onClick={handleExport}
-                                disabled={isExporting || isMLExporting}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold rounded-lg shadow-sm transition-all"
-                            >
-                                {isExporting
-                                    ? <><Loader2 className="w-4 h-4 animate-spin" />Exporting…</>
-                                    : <><Download className="w-4 h-4" />Export CSV</>
-                                }
-                            </button>
-                            <button
-                                onClick={handleMLExport}
-                                disabled={isExporting || isMLExporting}
-                                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white text-sm font-semibold rounded-lg shadow-sm transition-all"
-                            >
-                                {isMLExporting
-                                    ? <><Loader2 className="w-4 h-4 animate-spin" />Preparing…</>
-                                    : <><Stethoscope className="w-4 h-4" />Export ML-Ready</>
-                                }
-                            </button>
-                        </div>
-                    )}
                     <div className="bg-white rounded-lg p-1 border border-gray-200 flex shadow-sm">
                         {(['6H', 'Daily', '7Days', 'Monthly'] as const).map(t => (
                             <button
