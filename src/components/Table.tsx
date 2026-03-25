@@ -26,8 +26,8 @@ export const Table: FC<TableProps> = ({ headers, children, className }) => {
     );
 };
 
-export const TableRow = ({ children }: { children: ReactNode }) => (
-    <tr className="hover:bg-gray-50 transition-colors">{children}</tr>
+export const TableRow = ({ children, className }: { children: ReactNode; className?: string }) => (
+    <tr className={clsx("hover:bg-gray-50 transition-colors", className)}>{children}</tr>
 );
 
 export const TableCell = ({ children, className }: { children: ReactNode; className?: string }) => (
