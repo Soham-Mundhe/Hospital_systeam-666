@@ -13,8 +13,10 @@ import { RecentCheckIns } from '../components/dashboard/RecentCheckIns';
 import { useNavigate } from 'react-router-dom';
 import type { Bed, Patient } from '../types';
 import { BedDetailsModal } from '../components/dashboard/BedDetailsModal';
+import { PatientDetailModal } from '../components/PatientDetailModal';
 import { useHospitalLiveData } from '../hooks/useHospitalLiveData';
 import { useLiveBeds } from '../hooks/useLiveBeds';
+import { Activity } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export const Dashboard: FC = () => {
@@ -26,6 +28,7 @@ export const Dashboard: FC = () => {
     const [patients, setPatients] = useState<Patient[]>(hospitalPatients);
     const [selectedBed, setSelectedBed] = useState<Bed | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedRiskPatientId, setSelectedRiskPatientId] = useState<string | null>(null);
 
     // Filter patients to find the one assigned to the selected bed
     const selectedPatient = selectedBed?.patientId
@@ -152,28 +155,33 @@ export const Dashboard: FC = () => {
 
         return (
             <div className="space-y-6">
-                <div className="flex justify-between items-end">
-                    <div className="flex items-center gap-3">
+                <div className="flex justify-between items-end pb-2 border-b border-slate-100">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center border border-blue-100 shadow-sm">
+                            <Activity className="w-6 h-6 text-blue-500" />
+                        </div>
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                            <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
                                 Hospital Command Center
                                 {emergencyActive && (
-                                    <span className="text-xs bg-red-600 text-white px-3 py-1 rounded-full animate-pulse uppercase tracking-wider font-bold">
-                                        Emergency Override Active
+                                    <span className="text-[10px] bg-red-50 text-red-600 px-3 py-1 rounded-full uppercase tracking-widest font-black border border-red-100 animate-pulse">
+                                        Emergency Override
                                     </span>
                                 )}
                             </h1>
-                            <p className="text-gray-500">Real-time operational status</p>
+                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Real-time Clinical Operations</p>
                         </div>
                     </div>
-                    <div className="text-right">
-                        <p className="text-sm font-medium text-gray-600">Last Updated</p>
-                        <div className="flex items-center gap-2 justify-end">
-                            <span className="relative flex h-3 w-3">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                            </span>
-                            <p className="text-xs text-gray-400">Live Stream</p>
+                    <div className="text-right flex items-center gap-4">
+                        <div className="px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Last Update</p>
+                            <div className="flex items-center gap-2 justify-end">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                </span>
+                                <p className="text-[10px] font-black text-slate-600 uppercase tracking-tight">Active Stream</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -181,20 +189,20 @@ export const Dashboard: FC = () => {
                 {/* ── Intelligence Centre (real-time Firestore) ── */}
                 <HospitalIntelligence facilityId={user.facilityId} />
 
-                {/* Resource Awareness Panel */}
-                <div className="bg-slate-900 text-white p-4 rounded-xl shadow-lg grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Resource Awareness Panel - Lighter Aesthetic */}
+                <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-sm grid grid-cols-1 md:grid-cols-3 gap-8">
                     {/* General Beds */}
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-sm font-medium text-slate-300">
+                    <div className="space-y-3">
+                        <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
                             <span>General Bed Occupancy</span>
                             <span className={clsx(
-                                bedOccupancy > 90 ? "text-red-400" : "text-emerald-400"
+                                bedOccupancy > 90 ? "text-red-500" : "text-emerald-500"
                             )}>{bedOccupancy}%</span>
                         </div>
-                        <div className="w-full bg-slate-700 rounded-full h-2.5">
+                        <div className="w-full bg-slate-50 rounded-full h-2 border border-slate-100">
                             <div
-                                className={clsx("h-2.5 rounded-full transition-all duration-1000",
-                                    bedOccupancy > 90 ? "bg-red-500" : bedOccupancy > 75 ? "bg-yellow-500" : "bg-emerald-500"
+                                className={clsx("h-full rounded-full transition-all duration-1000",
+                                    bedOccupancy > 90 ? "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]" : bedOccupancy > 75 ? "bg-amber-500" : "bg-emerald-500"
                                 )}
                                 style={{ width: `${bedOccupancy}%` }}
                             ></div>
@@ -202,16 +210,16 @@ export const Dashboard: FC = () => {
                     </div>
 
                     {/* ICU Capacity */}
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-sm font-medium text-slate-300">
+                    <div className="space-y-3">
+                        <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
                             <span>ICU Capacity Stress</span>
                             <span className={clsx(
-                                icuOccupancy > 80 ? "text-red-400" : "text-blue-400"
+                                icuOccupancy > 80 ? "text-red-500" : "text-blue-500"
                             )}>{icuOccupancy}%</span>
                         </div>
-                        <div className="w-full bg-slate-700 rounded-full h-2.5">
+                        <div className="w-full bg-slate-50 rounded-full h-2 border border-slate-100">
                             <div
-                                className={clsx("h-2.5 rounded-full transition-all duration-1000",
+                                className={clsx("h-full rounded-full transition-all duration-1000",
                                     icuOccupancy > 80 ? "bg-red-500" : "bg-blue-500"
                                 )}
                                 style={{ width: `${icuOccupancy}%` }}
@@ -220,16 +228,16 @@ export const Dashboard: FC = () => {
                     </div>
 
                     {/* Oxygen Supply */}
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-sm font-medium text-slate-300">
+                    <div className="space-y-3">
+                        <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
                             <span>O2 Supply Reserves</span>
                             <span className={clsx(
-                                oxygenLevel < 20 ? "text-red-400" : "text-cyan-400"
+                                oxygenLevel < 20 ? "text-red-500" : "text-cyan-500"
                             )}>{oxygenLevel}%</span>
                         </div>
-                        <div className="w-full bg-slate-700 rounded-full h-2.5">
+                        <div className="w-full bg-slate-50 rounded-full h-2 border border-slate-100">
                             <div
-                                className={clsx("h-2.5 rounded-full transition-all duration-1000",
+                                className={clsx("h-full rounded-full transition-all duration-1000",
                                     oxygenLevel < 20 ? "bg-red-500" : "bg-cyan-500"
                                 )}
                                 style={{ width: `${oxygenLevel}%` }}
@@ -265,7 +273,16 @@ export const Dashboard: FC = () => {
                     onDischarge={handleDischargePatient}
                     onClean={handleCleanBed}
                     onViewRecord={handleViewRecord}
+                    onCheckRisk={setSelectedRiskPatientId}
                 />
+
+                {selectedRiskPatientId && user && (
+                    <PatientDetailModal
+                        facilityId={user.facilityId}
+                        patientDocId={selectedRiskPatientId}
+                        onClose={() => setSelectedRiskPatientId(null)}
+                    />
+                )}
             </div>
         );
     }

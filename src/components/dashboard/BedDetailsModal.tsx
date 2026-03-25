@@ -17,6 +17,7 @@ export interface BedDetailsModalProps {
     onDischarge: (bedId: string) => void;
     onClean: (bedId: string) => void;
     onViewRecord?: (patientId: string) => void;
+    onCheckRisk?: (patientId: string) => void;
 }
 
 interface FirestorePatient {
@@ -41,6 +42,7 @@ export const BedDetailsModal = ({
     onDischarge,
     onClean,
     onViewRecord,
+    onCheckRisk,
 }: BedDetailsModalProps) => {
     const { user } = useAuth();
 
@@ -262,7 +264,7 @@ export const BedDetailsModal = ({
                                 </div>
 
                                 {/* Actions */}
-                                <div className="flex gap-3">
+                                <div className="flex flex-col sm:flex-row gap-3">
                                     <button
                                         onClick={handleDischarge}
                                         disabled={isDischarging}
@@ -277,6 +279,14 @@ export const BedDetailsModal = ({
                                             className="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2.5 rounded-xl font-semibold text-sm transition-all"
                                         >
                                             View Full Record
+                                        </button>
+                                    )}
+                                    {onCheckRisk && livePatient.id && (
+                                        <button
+                                            onClick={() => onCheckRisk(livePatient.id)}
+                                            className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-xl font-semibold text-sm transition-all shadow-sm active:scale-95"
+                                        >
+                                            Check Risk
                                         </button>
                                     )}
                                 </div>
