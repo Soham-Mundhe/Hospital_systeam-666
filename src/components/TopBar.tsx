@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import type { FC } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Bell, User, QrCode, AlertTriangle, Info, Activity } from 'lucide-react';
+import { Bell, User, QrCode, AlertTriangle, Info, Activity } from 'lucide-react';
 import { PatientCheckInModal } from './dashboard/PatientCheckInModal';
 
 export const TopBar: FC = () => {
-    const { user, logout } = useAuth();
+    const { user } = useAuth();
     const [showQRModal, setShowQRModal] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     
@@ -133,13 +133,6 @@ export const TopBar: FC = () => {
                         <User className="w-5 h-5 text-primary" />
                     </div>
 
-                    <button
-                        onClick={logout}
-                        className="ml-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Logout"
-                    >
-                        <LogOut className="w-5 h-5" />
-                    </button>
                 </div>
             </div>
 

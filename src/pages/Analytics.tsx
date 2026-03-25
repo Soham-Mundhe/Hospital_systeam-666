@@ -160,9 +160,9 @@ export const Analytics: FC = () => {
                 name: label,
                 fullLabel: label,
                 // admissions & discharges are cumulative daily totals in each slot —
-                // use max (not sum) to get the correct final daily count.
-                admissions: max('newAdmissionsToday') || max('newAdmissions'),
-                discharges: max('dischargesToday') || max('discharges'),
+                // use Math.max to get the correct final daily count.
+                admissions: Math.max(max('newAdmissionsToday'), max('newAdmissions')),
+                discharges: Math.max(max('dischargesToday'), max('discharges')),
                 icu: Math.round(avg('icuOccupied')),
                 bedPct: Math.round(avg('bedUtilization') * 100),
                 icuPct: Math.round(avg('icuStressIndex') * 100),

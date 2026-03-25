@@ -61,7 +61,6 @@ export const Sidebar: FC = () => {
                     </NavLink>
                 ))}
             </nav>
-
             <div className="p-4 border-t border-slate-800">
                 <button
                     onClick={logout}

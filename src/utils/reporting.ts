@@ -4,7 +4,7 @@ import { db } from '../firebase';
 // ─── Slot Helper ─────────────────────────────────────────────────────────────
 
 /** Returns LOCAL date as YYYY-MM-DD (not UTC) */
-function localDateStr(d: Date = new Date()): string {
+export function localDateStr(d: Date = new Date()): string {
     const y = d.getFullYear();
     const mo = String(d.getMonth() + 1).padStart(2, '0');
     const dy = String(d.getDate()).padStart(2, '0');
@@ -99,19 +99,18 @@ export async function update6HourReport(facilityId: string): Promise<void> {
 
                 // Copy full report data from last existing slot
                 const [mDate, mSlot] = missingSlotId.split('_');
-                const backfillPayload = {
+                const standsOnSameDay = mDate === (lastReport.data.date || lastReport.id.split('_')[0]);
+                
+                const backfillPayload: any = {
                     ...lastReport.data,
                     slotId: missingSlotId,
                     date: mDate,
                     slot: mSlot,
                     timestamp: serverTimestamp(),
-                    // Zero out daily counters — these are "events on this day" fields,
-                    // not persistent state. Copying them forward causes Analytics to
-                    // sum the same admission/discharge multiple times across slots.
-                    newAdmissionsToday: 0,
-                    newAdmissions: 0,
-                    dischargesToday: 0,
-                    discharges: 0,
+                    // admissions & discharges are cumulative daily totals in each slot —
+                    // use Math.max to get the correct final daily count.
+                    admissions: standsOnSameDay ? (Number(lastReport.data.newAdmissionsToday) || 0) : 0,
+                    discharges: standsOnSameDay ? (Number(lastReport.data.dischargesToday) || 0) : 0,
                     autoFilled: true,
                 };
 
@@ -141,8 +140,13 @@ export async function update6HourReport(facilityId: string): Promise<void> {
         const covidCases = d('covid');
         const emergencyCases = patients.filter(p => p.status === 'critical').length;
 
-        const newAdmissionsToday = patients.filter(p => p.admissionDate === todayStr).length;
-        const dischargesToday = patients.filter(p => p.status === 'discharged' && p.dischargeDate === todayStr).length;
+        const trimDate = (dateStr?: string) => dateStr?.split(' ')[0]?.trim() || '';
+        const todayMatch = todayStr.trim();
+        
+        const newAdmissionsToday = patients.filter(p => trimDate(p.admissionDate) === todayMatch).length;
+        const dischargesToday = patients.filter(p => p.status === 'discharged' && trimDate(p.dischargeDate) === todayMatch).length;
+
+        console.info(`[6H Report] Aggregation for ${todayMatch}: Found ${newAdmissionsToday} admissions, ${dischargesToday} discharges.`);
 
         // Derived
         const availableBeds = Math.max(0, totalBeds - occupiedBeds);

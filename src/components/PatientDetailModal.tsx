@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { update6HourReport } from '../utils/reporting';
 import {
     X, User, Activity, Stethoscope,
     Loader2, Hash, Sparkles, Clock,
@@ -181,6 +182,8 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
         try {
             const patientRef = doc(db, 'facilities', facilityId, 'patients', patientDocId);
             await updateDoc(patientRef, { status: nextStatus });
+            // Refresh analytics dashboard for ICU stress / Bed utilization
+            await update6HourReport(facilityId).catch(console.error);
             setPatient({ ...patient, status: nextStatus });
         } catch (err) {
             console.error('Status update failed:', err);

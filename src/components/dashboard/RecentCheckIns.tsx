@@ -5,6 +5,7 @@ import {
     limit, doc, addDoc, deleteDoc, serverTimestamp 
 } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { update6HourReport, localDateStr } from '../../utils/reporting';
 import { 
     UserCheck, Loader2, Inbox, 
     X, FileText, Sparkles, BrainCircuit, 
@@ -92,7 +93,7 @@ export const RecentCheckIns: FC<Props> = ({ facilityId }) => {
                 ward: 'General Ward', // Default on admission
                 status: 'admitted', // Official hospital status
                 diagnosis: selectedRecord.disease,
-                admissionDate: new Date().toISOString().split('T')[0],
+                admissionDate: localDateStr(),
                 phone: selectedRecord.phone_number || 'N/A',
                 height: selectedRecord.height || null,
                 weight: selectedRecord.weight || null,
@@ -117,7 +118,10 @@ export const RecentCheckIns: FC<Props> = ({ facilityId }) => {
             const checkinDocRef = doc(db, 'facilities', facilityId, 'checkins', selectedRecord.id);
             await deleteDoc(checkinDocRef);
 
-            // 4. Success state
+            // 4. Trigger Real-time Analytics Refresh
+            await update6HourReport(facilityId).catch(console.error);
+
+            // 5. Success state
             setSelectedRecord(null);
             alert('Patient officially admitted and record updated.');
         } catch (err) {
