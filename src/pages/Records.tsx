@@ -102,7 +102,9 @@ export const Records: FC = () => {
         const searchableString = JSON.stringify(p).toLowerCase();
         const matchesSearch = searchableString.includes(term);
         const matchesStatus = statusFilter === 'All' || 
-            (statusFilter === 'ICU' ? p.icuRequired : p.status?.toLowerCase() === statusFilter.toLowerCase());
+            (statusFilter === 'ICU' 
+                ? (p.icuRequired && p.status !== 'discharged') 
+                : p.status?.toLowerCase() === statusFilter.toLowerCase());
         return matchesSearch && matchesStatus;
     });
 
