@@ -101,7 +101,8 @@ export const Records: FC = () => {
     const filteredRecords = records.filter(p => {
         const searchableString = JSON.stringify(p).toLowerCase();
         const matchesSearch = searchableString.includes(term);
-        const matchesStatus = statusFilter === 'All' || (p.status?.toLowerCase() === statusFilter.toLowerCase());
+        const matchesStatus = statusFilter === 'All' || 
+            (statusFilter === 'ICU' ? p.icuRequired : p.status?.toLowerCase() === statusFilter.toLowerCase());
         return matchesSearch && matchesStatus;
     });
 
@@ -149,6 +150,7 @@ export const Records: FC = () => {
                                 <option value="All">All Patients</option>
                                 <option value="Admitted">Admitted</option>
                                 <option value="Critical">Critical</option>
+                                <option value="ICU">ICU</option>
                                 <option value="Discharged">Discharged</option>
                             </select>
                         </div>
