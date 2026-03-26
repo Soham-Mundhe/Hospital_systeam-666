@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { FC } from 'react';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { StatCard } from '../components/StatCard';
 import { clinicStats, labStats, hospitalPatients, labPipeline } from '../mockData';
@@ -16,8 +17,10 @@ import { BedDetailsModal } from '../components/dashboard/BedDetailsModal';
 import { PatientDetailModal } from '../components/PatientDetailModal';
 import { useHospitalLiveData } from '../hooks/useHospitalLiveData';
 import { useLiveBeds } from '../hooks/useLiveBeds';
+import { update6HourReport, localDateStr } from '../utils/reporting';
 import { Activity } from 'lucide-react';
 import { clsx } from 'clsx';
+import { db } from '../firebase';
 
 export const Dashboard: FC = () => {
     const { user } = useAuth();
@@ -46,30 +49,49 @@ export const Dashboard: FC = () => {
         setIsModalOpen(true);
     };
 
-    const handleAssignPatient = (bedId: string, patientData: Omit<Patient, 'id' | 'admissionDate' | 'status'>) => {
+    const handleAssignPatient = async (
+        _bedId: string,
+        patientData: Omit<Patient, 'id' | 'admissionDate' | 'status'>
+    ) => {
+        // Hospital analytics (Analytics.tsx) is driven by Firestore `patients` + `reports`.
+        // Previously this handler only updated local state, so Admissions in the chart never changed.
+        if (!user?.facilityId) return;
+
         const newPatientId = `P-${Math.floor(Math.random() * 10000)}`;
-        const newPatient: Patient = {
-            id: newPatientId,
-            ...patientData,
-            status: 'admitted',
-            admissionDate: new Date().toISOString().split('T')[0],
-        };
+        const todayLocal = localDateStr();
 
-        // Update Patients State
-        setPatients(prev => [...prev, newPatient]);
+        // `BedDetailsModal` currently passes ward like: "${bed.ward} - ${bed.number}"
+        // Firestore `ward` is used by `useLiveBeds` as the bed "number", so store just the last part.
+        const wardNumber =
+            typeof patientData.ward === 'string' && patientData.ward.includes(' - ')
+                ? patientData.ward.split(' - ').pop()?.trim() || patientData.ward
+                : patientData.ward;
 
-        // Update Beds State
-        setBeds(prev => prev.map(bed => {
-            if (bed.id === bedId) {
-                return {
-                    ...bed,
-                    status: 'occupied',
-                    patientId: newPatientId,
-                    patientName: newPatient.name
-                };
-            }
-            return bed;
-        }));
+        try {
+            await addDoc(collection(db, 'facilities', user.facilityId, 'patients'), {
+                patientId: newPatientId,
+                name: patientData.name,
+                age: patientData.age,
+                gender: patientData.gender,
+                ward: wardNumber,
+                admissionDate: todayLocal,
+                dischargeDate: null,
+                diagnosis: patientData.diagnosis,
+                status: 'admitted',
+                icuRequired: patientData.icuRequired,
+                oxygenRequired: patientData.oxygenRequired,
+                symptoms: (patientData.symptoms || []).map(s => String(s).trim()).filter(Boolean),
+                lengthOfStay: patientData.lengthOfStay ?? null,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            });
+
+            // Recalculate the 6-hour slot aggregate so the Admissions (blue) series updates.
+            await update6HourReport(user.facilityId);
+        } catch (err) {
+            console.error('[Dashboard] Failed to admit patient:', err);
+            alert('Failed to admit patient. Please check database permissions.');
+        }
     };
 
     const handleDischargePatient = (bedId: string) => {

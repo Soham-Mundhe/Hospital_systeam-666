@@ -163,9 +163,12 @@ export const Analytics: FC = () => {
                 // use Math.max to get the correct final daily count.
                 admissions: Math.max(max('newAdmissionsToday'), max('newAdmissions')),
                 discharges: Math.max(max('dischargesToday'), max('discharges')),
-                icu: Math.round(avg('icuOccupied')),
+                // ICU occupancy is a live-ish count. Use MAX so the daily curve reflects
+                // the peak ICU occupancy during the day (instead of undercounting via avg).
+                icu: Math.round(max('icuOccupied')),
                 bedPct: Math.round(avg('bedUtilization') * 100),
-                icuPct: Math.round(avg('icuStressIndex') * 100),
+                // ICU stress % should also reflect the peak day-level stress.
+                icuPct: Math.round(max('icuStressIndex') * 100),
                 flu: max('fluCases'),
                 dengue: max('dengueCases'),
                 covid: max('covidCases'),

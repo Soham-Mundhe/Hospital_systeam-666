@@ -13,7 +13,7 @@ export interface BedDetailsModalProps {
     onClose: () => void;
     bed: Bed | null;
     patient?: Patient | null;          // kept for backward compat — ignored if bed has patientId
-    onAssign: (bedId: string, patientData: Omit<Patient, 'id' | 'admissionDate' | 'status'>) => void;
+    onAssign: (bedId: string, patientData: Omit<Patient, 'id' | 'admissionDate' | 'status'>) => void | Promise<void>;
     onDischarge: (bedId: string) => void;
     onClean: (bedId: string) => void;
     onViewRecord?: (patientId: string) => void;
@@ -50,6 +50,7 @@ export const BedDetailsModal = ({
     const [livePatient, setLivePatient] = useState<FirestorePatient | null>(null);
     const [isFetching, setIsFetching] = useState(false);
     const [isDischarging, setIsDischarging] = useState(false);
+    const [isAdmitting, setIsAdmitting] = useState(false);
 
     // Form state for admitting a new patient to an available bed
     const [formData, setFormData] = useState({
@@ -89,20 +90,27 @@ export const BedDetailsModal = ({
 
     // ── Handlers ──────────────────────────────────────────────────────────────
 
-    const handleSubmit = (e: FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
-        onAssign(bed.id, {
-            name: formData.name,
-            age: parseInt(formData.age) || 0,
-            gender: formData.gender,
-            symptoms: formData.symptoms.split(',').map(s => s.trim()),
-            ward: formData.ward,
-            diagnosis: formData.diagnosis,
-            icuRequired: formData.icuRequired,
-            oxygenRequired: formData.oxygenRequired,
-        });
-        setFormData({ name: '', age: '', gender: 'M', symptoms: '', ward: '', diagnosis: 'other', icuRequired: false, oxygenRequired: false });
-        onClose();
+        if (!user?.facilityId) return;
+        setIsAdmitting(true);
+        try {
+            await Promise.resolve(onAssign(bed.id, {
+                name: formData.name,
+                age: parseInt(formData.age) || 0,
+                gender: formData.gender,
+                symptoms: formData.symptoms.split(',').map(s => s.trim()).filter(Boolean),
+                ward: formData.ward,
+                diagnosis: formData.diagnosis,
+                icuRequired: formData.icuRequired,
+                oxygenRequired: formData.oxygenRequired,
+            }));
+
+            setFormData({ name: '', age: '', gender: 'M', symptoms: '', ward: '', diagnosis: 'other', icuRequired: false, oxygenRequired: false });
+            onClose();
+        } finally {
+            setIsAdmitting(false);
+        }
     };
 
     const handleDischarge = async () => {
@@ -389,10 +397,12 @@ export const BedDetailsModal = ({
                             </div>
                             <button
                                 type="submit"
+                                disabled={isAdmitting}
+                                aria-busy={isAdmitting}
                                 className="w-full bg-primary hover:bg-primary/90 text-white py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
                             >
-                                <CheckCircle2 className="w-5 h-5" />
-                                Admit Patient
+                                {isAdmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                                {isAdmitting ? 'Admitting...' : 'Admit Patient'}
                             </button>
                         </form>
                     )}

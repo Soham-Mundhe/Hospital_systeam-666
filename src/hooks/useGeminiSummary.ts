@@ -1,5 +1,6 @@
 import { useState } from 'react';
-const API_KEY = 'AIzaSyDIdqjfVZspiWejbSBJLMo059x72bgDGKU';
+
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
 
 export function useGeminiSummary() {
     const [isGenerating, setIsGenerating] = useState(false);
@@ -46,8 +47,23 @@ export function useGeminiSummary() {
 
             const payload = {
                 contents: [{
+                    role: 'user',
                     parts: [
-                        { text: `You are an expert clinical AI assistant. \n\nPatient Context:\n${patientContext || 'No additional context provided.'}\n\nAnalyze the medical files and provide a concise summary of findings, abnormalities, and critical alerts in professional Markdown format.` },
+                        {
+                            text:
+                                `You are an expert clinical AI assistant.\n\n` +
+                                `Goal: Using the provided patient documents, extract and summarize:\n` +
+                                `1) Patient current visit details (symptoms/complaints, vitals if present, diagnosis impression if present)\n` +
+                                `2) Medical history from the documents (past illnesses, surgeries/procedures, chronic conditions)\n` +
+                                `3) Treatments/medications mentioned (including dosage if explicitly stated)\n` +
+                                `4) Allergies mentioned\n` +
+                                `5) Red flags / critical findings (if present)\n\n` +
+                                `Patient Context (from the check-in form):\n${patientContext || 'No additional context provided.'}\n\n` +
+                                `Output requirements (Professional Markdown):\n` +
+                                `- Use headings: "Patient Details", "Medical History", "Current Visit", "Medications", "Allergies", "Red Flags", "Summary"\n` +
+                                `- If something is not found in the documents, write "Not provided in documents".\n` +
+                                `- Be concise and avoid speculation beyond the documents.\n`,
+                        },
                         ...filteredParts.map(p => ({ inline_data: p }))
                     ]
                 }],
@@ -57,9 +73,7 @@ export function useGeminiSummary() {
             // Models to try in order of efficiency/cost
             const modelsToTry = [
                 'gemini-1.5-flash',
-                'gemini-1.5-pro',
-                'gemini-1.5-flash-8b',
-                'gemini-pro' // legacy name for some older projects
+                'gemini-1.5-pro'
             ];
 
             let lastErrorData = null;
@@ -79,7 +93,12 @@ export function useGeminiSummary() {
                     const data = await response.json();
 
                     if (response.ok) {
-                        finalOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                        const parts = data.candidates?.[0]?.content?.parts ?? [];
+                        finalOutput = parts
+                            .map((p: any) => p?.text)
+                            .filter((t: any) => typeof t === 'string' && t.trim().length > 0)
+                            .join('\n')
+                            .trim();
                         if (finalOutput) {
                             console.log(`--- SUCCESS: Using ${modelName} ---`);
                             break;

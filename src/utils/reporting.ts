@@ -140,7 +140,34 @@ export async function update6HourReport(facilityId: string): Promise<void> {
         const covidCases = d('covid');
         const emergencyCases = patients.filter(p => p.status === 'critical').length;
 
-        const trimDate = (dateStr?: string) => dateStr?.split(' ')[0]?.trim() || '';
+        const trimDate = (value?: unknown) => {
+            if (!value) return '';
+            if (typeof value === 'string') {
+                const s = value.trim();
+                // Supports:
+                // - 'YYYY-MM-DD'
+                // - 'YYYY-MM-DD HH:mm:ss'
+                // - 'YYYY-MM-DDTHH:mm:ss.sssZ'
+                // - any string starting with YYYY-MM-DD
+                if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+                const spacePart = s.split(' ')[0]?.trim();
+                return spacePart || '';
+            }
+
+            // Firestore Timestamp-like objects: { seconds, nanoseconds } or { toDate() }
+            try {
+                const maybeTs: any = value as any;
+                if (typeof maybeTs?.toDate === 'function') {
+                    return localDateStr(maybeTs.toDate());
+                }
+                if (typeof maybeTs?.seconds === 'number') {
+                    return localDateStr(new Date(maybeTs.seconds * 1000));
+                }
+            } catch {
+                // ignore
+            }
+            return '';
+        };
         const todayMatch = todayStr.trim();
         
         const newAdmissionsToday = patients.filter(p => trimDate(p.admissionDate) === todayMatch).length;

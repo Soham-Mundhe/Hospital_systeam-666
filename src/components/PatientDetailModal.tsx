@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { update6HourReport } from '../utils/reporting';
 import {
     X, User, Activity, Stethoscope,
     Loader2, Hash, Sparkles, Clock,
     Bed, Calendar, CheckCircle2, Heart,
-    Thermometer, ChevronDown, AlertCircle
+    Thermometer, ChevronDown, AlertCircle, FileText
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -63,6 +63,7 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [currentView, setCurrentView] = useState<'details' | 'form' | 'results'>('details');
+    const [showDocuments, setShowDocuments] = useState(true);
 
     // ML Prediction States
     const [isPredicting, setIsPredicting] = useState(false);
@@ -181,10 +182,18 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
         
         try {
             const patientRef = doc(db, 'facilities', facilityId, 'patients', patientDocId);
-            await updateDoc(patientRef, { status: nextStatus });
+            // In this system, bed placement into ICU is driven by `icuRequired`
+            // (see `useLiveBeds`). So when we mark the patient as critical,
+            // also mark them as ICU-required to update real-time bed status + analytics.
+            const nextIcuRequired = nextStatus === 'critical';
+            await updateDoc(patientRef, {
+                status: nextStatus,
+                icuRequired: nextIcuRequired,
+                updatedAt: serverTimestamp(),
+            });
             // Refresh analytics dashboard for ICU stress / Bed utilization
             await update6HourReport(facilityId).catch(console.error);
-            setPatient({ ...patient, status: nextStatus });
+            setPatient({ ...patient, status: nextStatus, icuRequired: nextIcuRequired });
         } catch (err) {
             console.error('Status update failed:', err);
             alert('Failed to update clinical status.');
@@ -282,6 +291,66 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
                                     <DetailCard label="Length of Stay" value={`${patient.lengthOfStay || '6'} days (planned)`} icon={<Clock className="w-4 h-4 text-slate-400" />} className="md:col-span-2" />
                                 </div>
                             </Section>
+
+                            {/* Medical Documents & Scans (present in RecentCheckIns, but missing here) */}
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between gap-3">
+                                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-[0.2em] text-[10px]">
+                                        Medical Documents &amp; Scans
+                                    </h3>
+                                    <button
+                                        onClick={() => setShowDocuments(v => !v)}
+                                        className="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition-all"
+                                    >
+                                        {showDocuments ? 'Hide' : 'View'}
+                                    </button>
+                                </div>
+
+                                {showDocuments && (
+                                    <div className="space-y-3">
+                                        {Array.isArray(patient.documents) && patient.documents.length > 0 ? (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                {patient.documents.map((d: any, idx: number) => {
+                                                    const url = typeof d === 'string' ? d : (d?.url ?? '');
+                                                    if (!url) return null;
+                                                    const name = typeof d === 'string' ? `Document ${idx + 1}` : (d?.name ?? `Document ${idx + 1}`);
+                                                    const size = typeof d === 'string' ? undefined : d?.size;
+                                                    const isPdf = typeof d === 'string' ? url.toLowerCase().includes('.pdf') : (d?.name ?? '').toLowerCase().includes('.pdf');
+                                                    return (
+                                                        <a
+                                                            key={idx}
+                                                            href={url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex items-center gap-4 p-3 bg-white border border-slate-100 rounded-2xl hover:border-teal-200 transition-all group shadow-sm"
+                                                        >
+                                                            <div
+                                                                className={clsx(
+                                                                    "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm",
+                                                                    isPdf ? "bg-red-50 text-red-500" : "bg-blue-50 text-blue-500"
+                                                                )}
+                                                            >
+                                                                <FileText className="w-5 h-5" />
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-xs font-black text-slate-700 truncate">{name}</p>
+                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                                                    {size ? `${size} • ` : ''}
+                                                                    {isPdf ? 'PDF DOCUMENT' : 'DOCUMENT'}
+                                                                </p>
+                                                            </div>
+                                                        </a>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-gray-400 italic">
+                                                Not provided in documents.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
 
                             {/* Supplementary Data (Data the user wants kept hidden but accessible) */}
                             <div className="pt-6 border-t border-slate-100">

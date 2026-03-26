@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { FC } from 'react';
 import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { update6HourReport } from '../utils/reporting';
+import { update6HourReport, localDateStr } from '../utils/reporting';
 import { X, UserPlus, Loader2 } from 'lucide-react';
 
 interface Props {
@@ -31,7 +31,7 @@ const initialForm: FormState = {
     age: '',
     gender: 'Male',
     ward: '',
-    admissionDate: new Date().toISOString().split('T')[0],
+    admissionDate: localDateStr(),
     diagnosis: 'flu',
     status: 'admitted',
     icuRequired: false,
