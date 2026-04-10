@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { FC } from 'react';
 import type { Bed } from '../../types';
 import { clsx } from 'clsx';
-import { User, Bed as BedIcon, Sparkles, PenTool, AlertTriangle } from 'lucide-react';
+import { User, Bed as BedIcon, Sparkles, PenTool, AlertTriangle, Search } from 'lucide-react';
 
 // ── Occupancy alert level ─────────────────────────────────────────────────────
 function getAlert(pct: number) {
@@ -20,12 +20,23 @@ interface BedGridProps {
 
 export const BedGrid: FC<BedGridProps> = ({ beds, onBedClick, onBedCountChange }) => {
     const [selectedType, setSelectedType] = useState<Bed['type']>('general');
+    const [searchQuery, setSearchQuery] = useState('');
 
     // ── Occupancy calculation ────────────────────────────────────────────────
     const total = beds.length;
     const occupied = beds.filter(b => b.status === 'occupied').length;
     const pct = total > 0 ? Math.round((occupied / total) * 100) : 0;
     const alert = getAlert(pct);
+
+    const filteredBeds = beds.filter(bed => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+            (bed.patientName && bed.patientName.toLowerCase().includes(q)) ||
+            (bed.patientId && bed.patientId.toLowerCase().includes(q)) ||
+            (bed.number && bed.number.toLowerCase().includes(q))
+        );
+    });
 
     return (
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
@@ -100,9 +111,21 @@ export const BedGrid: FC<BedGridProps> = ({ beds, onBedClick, onBedCountChange }
                 </div>
             )}
 
+            {/* ── Search Bar ── */}
+            <div className="mb-4 relative">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                    type="text"
+                    placeholder="Search by Patient Name, ID, or Bed Number..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
+                />
+            </div>
+
             <div className="overflow-y-auto max-h-[480px] pr-1 scrollbar-thin">
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {beds.map((bed) => (
+                    {filteredBeds.map((bed) => (
                         <div
                             key={bed.id}
                             onClick={() => onBedClick && onBedClick(bed)}

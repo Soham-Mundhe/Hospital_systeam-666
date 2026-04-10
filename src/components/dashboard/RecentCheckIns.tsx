@@ -9,10 +9,11 @@ import { update6HourReport, localDateStr } from '../../utils/reporting';
 import { 
     UserCheck, Loader2, Inbox, 
     X, FileText, Sparkles, BrainCircuit, 
-    ClipboardList, AlertCircle, ChevronLeft, CheckCircle2
+    ClipboardList, AlertCircle, ChevronLeft, CheckCircle2, Download
 } from 'lucide-react';
 import { useGeminiSummary } from '../../hooks/useGeminiSummary';
 import { clsx } from 'clsx';
+import { exportCheckInsToCSV } from '../../utils/exportCheckInsToCSV';
 
 interface PatientDocument {
     id: string;
@@ -164,13 +165,24 @@ export const RecentCheckIns: FC<Props> = ({ facilityId }) => {
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Live QR scan feed</p>
                     </div>
                 </div>
-                <span className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-black uppercase tracking-widest">
-                    <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => exportCheckInsToCSV(records)}
+                        disabled={records.length === 0}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Export Check-Ins to CSV"
+                    >
+                        <Download className="w-3.5 h-3.5" />
+                        Export CSV
+                    </button>
+                    <span className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-black uppercase tracking-widest">
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                        </span>
+                        Live
                     </span>
-                    Live
-                </span>
+                </div>
             </div>
 
             {loading ? (

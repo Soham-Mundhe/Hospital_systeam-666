@@ -7,9 +7,11 @@ import {
     X, User, Activity, Stethoscope,
     Loader2, Hash, Sparkles, Clock,
     Bed, Calendar, CheckCircle2, Heart,
-    Thermometer, ChevronDown, AlertCircle, FileText
+    Thermometer, ChevronDown, AlertCircle, FileText,
+    BrainCircuit, ClipboardList, ChevronLeft
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useGeminiSummary, getSpecialistDoctor } from '../hooks/useGeminiSummary';
 
 interface Props {
     facilityId: string;
@@ -65,9 +67,14 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
     const [currentView, setCurrentView] = useState<'details' | 'form' | 'results'>('details');
     const [showDocuments, setShowDocuments] = useState(true);
 
+    // AI Summary States
+    const [viewingSummary, setViewingSummary] = useState(false);
+    const { generateSummary, generateCombinedRisk, isGenerating: isAiGenerating, summary, error: aiError } = useGeminiSummary();
+
     // ML Prediction States
     const [isPredicting, setIsPredicting] = useState(false);
-    const [predictionResult, setPredictionResult] = useState<{risk: number, level: string, reasons?: {factor: string, impact: number}[], error?: boolean | string} | null>(null);
+    const [isAiEnhancedRisk, setIsAiEnhancedRisk] = useState(false);
+    const [predictionResult, setPredictionResult] = useState<{risk: number, level: string, reasons?: {factor: string, impact: number}[], clinical_summary?: string, recommended_actions?: string[], error?: boolean | string} | null>(null);
 
     // Form states
     const [age, setAge] = useState('');
@@ -126,6 +133,32 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
         }
     }, [height, weight]);
 
+    const handleAIsummarize = async () => {
+        if (!patient) return;
+        setViewingSummary(true);
+        
+        const context = `
+        Patient Profile:
+        - Name: ${patient.name}
+        - Age: ${patient.age}
+        - Gender: ${patient.gender}
+        - Diagnosis: ${patient.diagnosis}
+        
+        Vitals/Stats:
+        - Height/Weight: ${patient.height}cm / ${patient.weight}kg (BMI: ${patient.bmi})
+        
+        Clinical Assessment:
+        - Prev Admissions: ${patient.previousAdmissions}
+        - Chronic Diseases: ${patient.chronicDiseases}
+        
+        Documents attached: ${patient.documents?.length || 0}
+        `;
+
+        const urls = patient.documents?.map((d: any) => typeof d === 'string' ? d : (d?.url || '')) || [];
+        const validUrls = urls.filter(u => u);
+        await generateSummary(validUrls, context);
+    };
+
     const handlePredict = async () => {
         if (!age || !prevAdmissions || !bmi || !numDiagnoses || !bloodPressure || !heartRate || !glucoseLevel || !oxygenSaturation || !bodyTemperature || !formLengthOfStay) {
             alert('Please fill out all numeric fields.');
@@ -160,11 +193,40 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
                 ? Math.round(data.risk_distribution.high + data.risk_distribution.moderate) 
                 : 15;
 
-            setPredictionResult({
+            const basePrediction = {
                 risk: riskValue,
                 level: data.final_prediction || 'Low',
                 reasons: data.top_factors || []
-            });
+            };
+
+            if (isAiEnhancedRisk) {
+                const context = `
+                Patient Stats:
+                - Age: ${age}
+                - Height/Weight: ${height}cm / ${weight}kg (BMI: ${bmi})
+                - Prev Admissions: ${prevAdmissions}
+                - Chronic Diseases: ${chronicDiseases}
+                - Smoking: ${smokingStatus}, Alcohol: ${alcoholConsumption}
+                
+                Clinical Data:
+                - Diagnoses Count: ${numDiagnoses}
+                - Expected Stay: ${formLengthOfStay} days
+                - BP: ${bloodPressure}, HR: ${heartRate}, SpO2: ${oxygenSaturation}%, Temp: ${bodyTemperature}°C, Glucose: ${glucoseLevel}
+                `;
+                
+                const urls = patient?.documents?.map((d: any) => typeof d === 'string' ? d : (d?.url || '')) || [];
+                const validUrls = urls.filter((u:any) => u);
+                const specialist = getSpecialistDoctor(patient?.diagnosis);
+                
+                const combined = await generateCombinedRisk(validUrls, context, basePrediction, specialist.name);
+                if (combined) {
+                    setPredictionResult(combined);
+                    setCurrentView('results');
+                    return;
+                }
+            }
+
+            setPredictionResult(basePrediction);
             setCurrentView('results');
         } catch (err) {
             console.error('Prediction error:', err);
@@ -295,15 +357,26 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
                             {/* Medical Documents & Scans (present in RecentCheckIns, but missing here) */}
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between gap-3">
-                                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-[0.2em] text-[10px]">
-                                        Medical Documents &amp; Scans
-                                    </h3>
-                                    <button
-                                        onClick={() => setShowDocuments(v => !v)}
-                                        className="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition-all"
-                                    >
-                                        {showDocuments ? 'Hide' : 'View'}
-                                    </button>
+                                    <div className="flex items-center gap-3">
+                                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-[0.2em] text-[10px]">
+                                            Medical Documents &amp; Scans
+                                        </h3>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={handleAIsummarize}
+                                            className="flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:shadow-lg hover:shadow-blue-100 transition-all active:scale-95"
+                                        >
+                                            <Sparkles className="w-3 h-3" /> AI Summarize
+                                        </button>
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-3 py-1 rounded-full whitespace-nowrap">Files: {patient.documents?.length || 0}</span>
+                                        <button
+                                            onClick={() => setShowDocuments(v => !v)}
+                                            className="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition-all ml-1 whitespace-nowrap"
+                                        >
+                                            {showDocuments ? 'Hide' : 'View'}
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {showDocuments && (
@@ -367,9 +440,24 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
                         <div className="space-y-8 animate-in zoom-in-95 duration-300">
                             <div className="bg-white border border-slate-100 rounded-3xl p-8 shadow-xl relative overflow-hidden">
                                 <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500/20" />
-                                <h3 className="text-sm font-black text-slate-800 mb-8 flex items-center gap-3">
-                                    <Activity className="w-5 h-5 text-blue-500" /> Risk Assessment Configuration
-                                </h3>
+                                
+                                <div className="flex items-center justify-between mb-8">
+                                    <h3 className="text-sm font-black text-slate-800 flex items-center gap-3">
+                                        <Activity className="w-5 h-5 text-blue-500" /> Risk Assessment Configuration
+                                    </h3>
+                                    <button 
+                                        onClick={() => setIsAiEnhancedRisk(!isAiEnhancedRisk)}
+                                        className={clsx(
+                                            "flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border outline-none active:scale-95",
+                                            isAiEnhancedRisk 
+                                                ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm" 
+                                                : "bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                                        )}
+                                    >
+                                        <BrainCircuit className={clsx("w-3.5 h-3.5", isAiEnhancedRisk ? "text-indigo-500" : "text-slate-400")} />
+                                        {isAiEnhancedRisk ? 'AI Document Risk ON' : 'Enable AI Risk Docs'}
+                                    </button>
+                                </div>
                                 
                                 {/* Section 1: General Stats */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
@@ -432,6 +520,24 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
 
                     {patient && !isLoading && currentView === 'results' && predictionResult && (
                         <div className="animate-in fade-in zoom-in-95 duration-500 flex flex-col items-center py-6 space-y-8">
+                            {isAiEnhancedRisk && (
+                                <div className="bg-indigo-50 border border-indigo-100 px-4 py-2 rounded-xl flex flex-col sm:flex-row items-center gap-2 shadow-sm animate-in slide-in-from-top-4">
+                                    <div className="flex items-center gap-2">
+                                        <BrainCircuit className="w-4 h-4 text-indigo-500" />
+                                        <span className="text-[10px] font-black text-indigo-700 uppercase tracking-[0.2em] leading-none">
+                                            Assessed internally by {getSpecialistDoctor(patient?.diagnosis).name} AI
+                                        </span>
+                                    </div>
+                                    {patient?.documents?.length ? (
+                                        <>
+                                            <span className="hidden sm:inline-block w-1 h-1 bg-indigo-200 rounded-full"/>
+                                            <span className="text-[9px] font-bold text-indigo-600/70 uppercase tracking-widest leading-none">
+                                                Analyzed Vitals + {patient.documents.length} Documents
+                                            </span>
+                                        </>
+                                    ) : null}
+                                </div>
+                            )}
                             <div className={clsx("w-full max-w-lg bg-white border rounded-[3rem] p-1 shadow-2xl overflow-hidden", 
                                 predictionResult.risk >= 66 ? 'border-red-100' : 
                                 predictionResult.risk >= 30 ? 'border-orange-100' : 'border-green-100')}>
@@ -450,24 +556,53 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
                                 </div>
                             </div>
 
+                            {predictionResult.clinical_summary && (
+                                <div className="w-full max-w-lg bg-indigo-50/50 border border-indigo-100 rounded-3xl p-6 shadow-sm">
+                                    <h4 className="text-[10px] font-black text-indigo-800 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                                        <Stethoscope className="w-3.5 h-3.5" /> Clinical Executive Summary
+                                    </h4>
+                                    <p className="text-xs font-semibold leading-relaxed text-indigo-900/80">
+                                        {predictionResult.clinical_summary}
+                                    </p>
+                                </div>
+                            )}
+
                             {predictionResult.reasons && predictionResult.reasons.length > 0 && (
                                 <div className="w-full max-w-lg space-y-4">
                                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 flex items-center gap-2">
-                                        <Sparkles className="w-3.5 h-3.5 text-blue-500" /> Top Contributing Factors
+                                        <Activity className="w-3.5 h-3.5 text-blue-500" /> Primary Risk Vectors
                                     </h4>
                                     <div className="grid grid-cols-1 gap-3">
                                         {predictionResult.reasons.map((r, i) => (
                                             <div key={i} className="bg-white border border-slate-100 px-6 py-4 rounded-2xl flex items-center justify-between shadow-sm group hover:border-blue-200 transition-all">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-2 h-2 rounded-full bg-blue-400" />
-                                                    <span className="text-xs font-bold text-slate-600">{r.factor}</span>
+                                                    <span className="text-xs font-bold text-slate-600 max-w-[280px] break-words">{r.factor}</span>
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <div className="w-16 md:w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                                         <div className="h-full bg-blue-500 rounded-full" style={{ width: `${r.impact}%` }} />
                                                     </div>
                                                     <span className="text-[10px] font-black text-slate-400 w-8 text-right">{Math.round(r.impact)}%</span>
                                                 </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {predictionResult.recommended_actions && predictionResult.recommended_actions.length > 0 && (
+                                <div className="w-full max-w-lg space-y-4">
+                                    <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest px-4 flex items-center gap-2">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Recommended Action Plan
+                                    </h4>
+                                    <div className="grid grid-cols-1 gap-3">
+                                        {predictionResult.recommended_actions.map((action, i) => (
+                                            <div key={i} className="bg-white border border-emerald-100 px-5 py-4 rounded-2xl flex items-start gap-4 shadow-sm group hover:border-emerald-200 transition-all">
+                                                <div className="w-6 h-6 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0 mt-0.5">
+                                                    <span className="text-[9px] font-black text-emerald-600">{i + 1}</span>
+                                                </div>
+                                                <span className="text-xs font-bold text-slate-700 leading-snug pt-1">{action}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -513,10 +648,19 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
                         </button>
                     )}
                     {currentView === 'form' && (
-                        <button onClick={handlePredict} disabled={isPredicting} className="px-10 py-3.5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center gap-3 active:scale-95">
-                            {isPredicting ? <Loader2 className="w-4 h-4 animate-spin"/> : <Sparkles className="w-4 h-4"/>}
-                            {isPredicting ? 'Executing...' : 'Generate Prediction'}
-                        </button>
+                        <div className="flex flex-col items-end gap-2 shrink-0">
+                            {(isPredicting || isAiGenerating) && isAiEnhancedRisk && (
+                                <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest animate-pulse flex items-center gap-2 mr-2">
+                                    <BrainCircuit className="w-3 h-3" />
+                                    {getSpecialistDoctor(patient?.diagnosis).status}
+                                    {patient?.documents?.length ? ` • Reading ${patient.documents.length} File(s)` : ''}
+                                </span>
+                            )}
+                            <button onClick={handlePredict} disabled={isPredicting || isAiGenerating} className="px-10 py-3.5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center gap-3 active:scale-95 disabled:opacity-50">
+                                {(isPredicting || isAiGenerating) ? <Loader2 className="w-4 h-4 animate-spin"/> : <Sparkles className="w-4 h-4"/>}
+                                {(isPredicting || isAiGenerating) ? 'Executing...' : 'Generate Prediction'}
+                            </button>
+                        </div>
                     )}
                     {currentView === 'results' && (
                         <button onClick={() => setCurrentView('details')} className="px-10 py-3.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all">
@@ -524,6 +668,75 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
                         </button>
                     )}
                 </div>
+                
+                {/* AI SUMMARY OVERLAY */}
+                {viewingSummary && (
+                    <div className="absolute inset-0 z-50 bg-white flex flex-col pt-0 animate-in fade-in duration-300">
+                        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-4">
+                                <button onClick={() => setViewingSummary(false)} className="p-2 rounded-xl hover:bg-slate-50 text-slate-400 hover:text-slate-600 transition-all group">
+                                    <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+                                </button>
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+                                        <BrainCircuit className="w-5 h-5 text-white" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-sm font-black text-slate-900 tracking-tight uppercase leading-none mb-1">AI Clinical Summary</h2>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Powered by Gemini 1.5 Pro</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onClick={() => setViewingSummary(false)} className="p-2 rounded-xl hover:bg-slate-50 text-slate-300 hover:text-slate-600 transition-all">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/20 custom-scrollbar">
+                            <div className="max-w-xl mx-auto space-y-8">
+                                {isAiGenerating ? (
+                                    <div className="py-20 flex flex-col items-center justify-center text-center">
+                                        <div className="relative mb-6">
+                                            <div className="absolute inset-0 bg-blue-400/20 blur-2xl animate-pulse rounded-full" />
+                                            <div className="relative w-16 h-16 rounded-[2rem] bg-indigo-50 flex items-center justify-center border border-indigo-100">
+                                                <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+                                            </div>
+                                        </div>
+                                        <h3 className="text-sm font-black text-slate-800 mb-2 uppercase tracking-widest">Analyzing Medical Documents</h3>
+                                        <p className="text-[10px] font-medium text-slate-400 max-w-xs mx-auto italic">Synthesizing patient data and scan results into clinical insights...</p>
+                                    </div>
+                                ) : aiError ? (
+                                    <div className="p-8 bg-red-50 border border-red-100 rounded-3xl flex flex-col items-center text-center">
+                                        <AlertCircle className="w-10 h-10 text-red-400 mb-4" />
+                                        <h3 className="text-sm font-black text-red-800 mb-2 uppercase tracking-widest">Analysis Interrupted</h3>
+                                        <p className="text-[10px] font-medium text-red-600/70 mb-6">{aiError}</p>
+                                        <button onClick={handleAIsummarize} className="px-8 py-3 bg-red-100 text-red-700 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-200 transition-all">
+                                            Retry Analysis
+                                        </button>
+                                    </div>
+                                ) : summary ? (
+                                    <div className="bg-white border border-slate-100 rounded-[2rem] p-8 shadow-xl shadow-slate-200/40 relative overflow-hidden group">
+                                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
+                                            <ClipboardList className="w-32 h-32 text-indigo-900" />
+                                        </div>
+                                        <div className="prose prose-slate prose-sm max-w-none text-slate-600 leading-relaxed font-medium">
+                                            <div dangerouslySetInnerHTML={{ __html: summary.replace(/\*\*(.*?)\*\*/g, '<b class="text-slate-900 font-black tracking-tight">$1</b>').replace(/\n/g, '<br/>') }} />
+                                        </div>
+                                        <div className="mt-10 pt-6 border-t border-slate-50 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">
+                                                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                                </div>
+                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Verification Complete</span>
+                                            </div>
+                                            <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest italic">Generated safely</p>
+                                        </div>
+                                    </div>
+                                ) : null}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

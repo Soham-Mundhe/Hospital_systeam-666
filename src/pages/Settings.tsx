@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { exportCSV, exportMLCSV } from '../utils/reporting';
+import { exportCheckInsToCSV } from '../utils/exportCheckInsToCSV';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -441,19 +442,6 @@ export const Settings: FC = () => {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-interface CheckInRecord {
-    patient_id: string;
-    name: string;
-    age: number;
-    gender: string;
-    disease: string;
-    previous_admissions: number;
-    medications: string;
-    blood_pressure: string;
-    glucose_level: string;
-    visit_date: string;
-}
-
 const ExportDataCard: FC<{ facilityId: string }> = ({ facilityId }) => {
     const [exportingCheckins, setExportingCheckins] = useState(false);
     const [exportingCSV, setExportingCSV] = useState(false);
@@ -465,42 +453,16 @@ const ExportDataCard: FC<{ facilityId: string }> = ({ facilityId }) => {
             const snap = await getDocs(
                 query(
                     collection(db, 'facilities', facilityId, 'checkins'),
-                    orderBy('visit_date', 'desc')
+                    orderBy('createdAt', 'desc')
                 )
             );
 
-            const headers = [
-                'patient_id', 'name', 'age', 'gender', 'disease',
-                'previous_admissions', 'medications', 'blood_pressure',
-                'glucose_level', 'visit_date'
-            ];
-
-            const rows = snap.docs.map(d => {
-                const r = d.data() as CheckInRecord;
-                return [
-                    r.patient_id ?? '',
-                    r.name ?? '',
-                    r.age ?? '',
-                    r.gender ?? '',
-                    r.disease ?? '',
-                    r.previous_admissions ?? '',
-                    r.medications ?? '',
-                    r.blood_pressure ?? '',
-                    r.glucose_level ?? '',
-                    r.visit_date ?? '',
-                ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
-            });
-
-            const csvContent = [headers.join(','), ...rows].join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `patient_checkins_${new Date().toISOString().slice(0, 10)}.csv`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+            const records = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+            
+            // Pass all records into the centralized export utility
+            // This ensures all columns, including Google Drive documents, are perfectly encoded.
+            exportCheckInsToCSV(records);
+            
         } catch (err) {
             console.error('[ExportDataCard] CSV export error:', err);
         } finally {
