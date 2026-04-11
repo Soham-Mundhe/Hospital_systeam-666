@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>🏥 CareFlow AI: Hospital Command Center</h1>
+  <h1>🏥 ReCare AI: Hospital Command Center</h1>
   <p><strong>Revolutionizing healthcare administration with Real-Time Analytics and Generative AI Diagnostics.</strong></p>
 
   ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
@@ -15,7 +15,7 @@
 Traditional hospital management systems are notoriously fragmented, slow, and lack proactive insights. Doctors and administrators waste critical time dealing with bureaucratic hurdles rather than focusing on patient care. Assessing immediate risk from a massive influx of patient documents is nearly impossible at scale.
 
 ## 💡 Our Solution
-**CareFlow AI** is a state-of-the-art, centralized hospital dashboard engineered to solve clinical bottlenecks. By leveraging **Google Generative AI**, the system instantly processes incoming patient data, analyzes health risk factors, and provides actionable triage insights. Coupled with real-time Firebase syncing, hospital staff get an live, bird's-eye view of every department.
+**ReCare AI** is a state-of-the-art, centralized hospital dashboard engineered to solve clinical bottlenecks. By leveraging **Google Generative AI**, the system instantly processes incoming patient data, analyzes health risk factors, and provides actionable triage insights. Coupled with real-time Firebase syncing, hospital staff get an live, bird's-eye view of every department.
 
 ---
 
