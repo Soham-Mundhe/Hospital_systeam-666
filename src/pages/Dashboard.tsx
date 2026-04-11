@@ -15,10 +15,11 @@ import { useNavigate } from 'react-router-dom';
 import type { Bed, Patient } from '../types';
 import { BedDetailsModal } from '../components/dashboard/BedDetailsModal';
 import { PatientDetailModal } from '../components/PatientDetailModal';
+import { OutbreakAlertModal } from '../components/dashboard/OutbreakAlertModal';
 import { useHospitalLiveData } from '../hooks/useHospitalLiveData';
 import { useLiveBeds } from '../hooks/useLiveBeds';
 import { update6HourReport, localDateStr } from '../utils/reporting';
-import { Activity } from 'lucide-react';
+import { Activity, AlertTriangle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { db } from '../firebase';
 
@@ -32,7 +33,7 @@ export const Dashboard: FC = () => {
     const [selectedBed, setSelectedBed] = useState<Bed | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedRiskPatientId, setSelectedRiskPatientId] = useState<string | null>(null);
-
+    const [isOutbreakModalOpen, setIsOutbreakModalOpen] = useState(false);
     // Filter patients to find the one assigned to the selected bed
     const selectedPatient = selectedBed?.patientId
         ? patients.find(p => p.id === selectedBed.patientId) || null
@@ -140,7 +141,7 @@ export const Dashboard: FC = () => {
         // eslint-disable-next-line react-hooks/rules-of-hooks
         const live = useHospitalLiveData(user.facilityId);
         // eslint-disable-next-line react-hooks/rules-of-hooks
-        const { beds: liveBeds } = useLiveBeds(user.facilityId);
+        const { beds: liveBeds, livePatients } = useLiveBeds(user.facilityId);
         const { bedOccupancy, icuOccupancy, oxygenLevel, emergencyActive } = live;
 
         // Build live StatCards from real Firestore data
@@ -195,6 +196,13 @@ export const Dashboard: FC = () => {
                         </div>
                     </div>
                     <div className="text-right flex items-center gap-4">
+                        <button
+                            onClick={() => setIsOutbreakModalOpen(true)}
+                            className="px-4 py-2 bg-red-50 text-red-600 rounded-xl border border-red-100 font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-red-100 transition-colors shadow-sm"
+                        >
+                            <AlertTriangle className="w-4 h-4" />
+                            Broadcast Alert
+                        </button>
                         <div className="px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Last Update</p>
                             <div className="flex items-center gap-2 justify-end">
@@ -305,6 +313,13 @@ export const Dashboard: FC = () => {
                         onClose={() => setSelectedRiskPatientId(null)}
                     />
                 )}
+
+                <OutbreakAlertModal
+                    isOpen={isOutbreakModalOpen}
+                    onClose={() => setIsOutbreakModalOpen(false)}
+                    facilityId={user.facilityId}
+                    livePatients={livePatients}
+                />
             </div>
         );
     }
