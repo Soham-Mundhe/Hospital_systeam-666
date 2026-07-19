@@ -37,7 +37,20 @@ export function useGeminiSummary() {
             const imageParts = await Promise.all(
                 fileUrls.map(async (url) => {
                     try {
-                        const response = await fetch(url);
+                        let fetchUrl = url;
+                        // Convert Google Drive view links to direct download links so Gemini receives the actual image/PDF, not HTML.
+                        if (url.includes('drive.google.com/file/d/')) {
+                            const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                            if (match && match[1]) {
+                                fetchUrl = `https://drive.google.com/uc?export=download&id=${match[1]}`;
+                            }
+                        } else if (url.includes('drive.google.com/open?id=')) {
+                            const match = url.match(/id=([a-zA-Z0-9_-]+)/);
+                            if (match && match[1]) {
+                                fetchUrl = `https://drive.google.com/uc?export=download&id=${match[1]}`;
+                            }
+                        }
+                        const response = await fetch(fetchUrl);
                         if (!response.ok) return null;
                         const blob = await response.blob();
                         
@@ -65,18 +78,16 @@ export function useGeminiSummary() {
                     parts: [
                         {
                             text:
-                                `You are an expert clinical AI assistant.\n\n` +
-                                `Goal: Using the provided patient documents, extract and summarize:\n` +
-                                `1) Patient current visit details (symptoms/complaints, vitals if present, diagnosis impression if present)\n` +
-                                `2) Medical history from the documents (past illnesses, surgeries/procedures, chronic conditions)\n` +
-                                `3) Treatments/medications mentioned (including dosage if explicitly stated)\n` +
-                                `4) Allergies mentioned\n` +
-                                `5) Red flags / critical findings (if present)\n\n` +
-                                `Patient Context (from the check-in form):\n${patientContext || 'No additional context provided.'}\n\n` +
-                                `Output requirements (Professional Markdown):\n` +
-                                `- Use headings: "Patient Details", "Medical History", "Current Visit", "Medications", "Allergies", "Red Flags", "Summary"\n` +
-                                `- If something is not found in the documents, write "Not provided in documents".\n` +
-                                `- Be concise and avoid speculation beyond the documents.\n`,
+                                `You are an expert AI assistant.\n\n` +
+                                `Goal: Your ONLY task is to summarize ALL the patient information provided in the 'Patient Context' text below.\n` +
+                                `Instructions:\n` +
+                                `1) IGNORE any attached images or documents entirely. Rely strictly on the text provided in the Patient Context.\n` +
+                                `2) Extract and list ALL their details (Personal Profile AND Clinical Assessments like Chronic Diseases, Medications, Allergies, Surgeries, Prev Admissions, Vitals etc).\n` +
+                                `3) List all of it clearly in a single comprehensive pointwise format (bullet points).\n\n` +
+                                `Patient Context:\n${patientContext || 'No context provided.'}\n\n` +
+                                `CRITICAL RULES:\n` +
+                                `- Output ONLY the pointwise list of the user's FULL profile and clinical data based purely on the context text.\n` +
+                                `- Do not add any other paragraphs or summaries.\n`,
                         },
                         ...filteredParts.map(p => ({ inline_data: p }))
                     ]
@@ -158,7 +169,19 @@ export function useGeminiSummary() {
             const imageParts = await Promise.all(
                 fileUrls.map(async (url) => {
                     try {
-                        const response = await fetch(url);
+                        let fetchUrl = url;
+                        if (url.includes('drive.google.com/file/d/')) {
+                            const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                            if (match && match[1]) {
+                                fetchUrl = `https://drive.google.com/uc?export=download&id=${match[1]}`;
+                            }
+                        } else if (url.includes('drive.google.com/open?id=')) {
+                            const match = url.match(/id=([a-zA-Z0-9_-]+)/);
+                            if (match && match[1]) {
+                                fetchUrl = `https://drive.google.com/uc?export=download&id=${match[1]}`;
+                            }
+                        }
+                        const response = await fetch(fetchUrl);
                         if (!response.ok) return null;
                         const blob = await response.blob();
                         

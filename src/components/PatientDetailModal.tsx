@@ -140,16 +140,23 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
         const context = `
         Patient Profile:
         - Name: ${patient.name}
+        - Patient ID: ${patient.patientId || patient.id}
         - Age: ${patient.age}
         - Gender: ${patient.gender}
-        - Diagnosis: ${patient.diagnosis}
+        - Phone: ${patient.phone || 'Not Provided'}
+        - Visit Date: ${patient.checkInDate || patient.admissionDate || 'Not Provided'}
+        
+        Clinical Assessment:
+        - Diagnosis / Purpose of Visit: ${patient.diagnosis || 'Not Provided'}
+        - Chronic Diseases: ${patient.disease || patient.chronicDiseases || 'None'}
+        - Active Medications: ${patient.medications || 'None'}
+        - Known Allergies: ${patient.allergies || 'None'}
+        - Past Surgeries: ${patient.surgeries || 'None'}
+        - Family Medical History: ${patient.familyHistory || 'None'}
+        - Prev Admissions: ${patient.previous_admissions || patient.previousAdmissions || 0}
         
         Vitals/Stats:
         - Height/Weight: ${patient.height}cm / ${patient.weight}kg (BMI: ${patient.bmi})
-        
-        Clinical Assessment:
-        - Prev Admissions: ${patient.previousAdmissions}
-        - Chronic Diseases: ${patient.chronicDiseases}
         
         Documents attached: ${patient.documents?.length || 0}
         `;
