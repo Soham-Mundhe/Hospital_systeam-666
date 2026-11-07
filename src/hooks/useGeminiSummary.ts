@@ -238,7 +238,6 @@ export function useGeminiSummary() {
 
             const modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-pro'];
             let finalOutput = null;
-            let lastErrorData = null;
 
             for (const modelName of modelsToTry) {
                 try {
@@ -253,10 +252,10 @@ export function useGeminiSummary() {
                         const parts = data.candidates?.[0]?.content?.parts ?? [];
                         finalOutput = parts.map((p: any) => p?.text).join('').trim();
                         if (finalOutput) break;
-                    } else {
-                        lastErrorData = data;
                     }
-                } catch (e) {}
+                } catch {
+                    // Try next model fallback
+                }
             }
 
             if (!finalOutput) {

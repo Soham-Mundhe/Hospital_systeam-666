@@ -25,11 +25,18 @@ interface PatientDoc {
     name?: string;
     age?: number;
     gender?: string;
+    phone?: string;
     ward?: string;
     status?: string;
     diagnosis?: string;
+    disease?: string;
     admissionDate?: string;
+    checkInDate?: string;
     symptoms?: string[];
+    medications?: string;
+    allergies?: string;
+    surgeries?: string;
+    familyHistory?: string;
     icuRequired?: boolean;
     oxygenRequired?: boolean;
     lengthOfStay?: number;
@@ -153,7 +160,7 @@ export const PatientDetailModal: FC<Props> = ({ facilityId, patientDocId, onClos
         - Known Allergies: ${patient.allergies || 'None'}
         - Past Surgeries: ${patient.surgeries || 'None'}
         - Family Medical History: ${patient.familyHistory || 'None'}
-        - Prev Admissions: ${patient.previous_admissions || patient.previousAdmissions || 0}
+        - Prev Admissions: ${patient.previousAdmissions || 0}
         
         Vitals/Stats:
         - Height/Weight: ${patient.height}cm / ${patient.weight}kg (BMI: ${patient.bmi})
